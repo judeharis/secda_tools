@@ -2,3 +2,4 @@ bazel-*
 .vscode/
 third_party/systemc_old.BUILD
 secda_tools.code-workspace
+secda_profiler/_analyse_profile.ipynb
