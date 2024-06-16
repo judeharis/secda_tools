@@ -2,6 +2,7 @@
 #ifndef PROFILER_HEADER
 #define PROFILER_HEADER
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -25,6 +26,8 @@ using namespace std::chrono;
 
 #define prf_file_out(TSCALE, X, file)                                          \
   file << #X << "," << duration_cast<TSCALE>(X).count() << endl;
+
+#define prf_count(TSCALE, X) duration_cast<TSCALE>(X).count()
 
 typedef duration<long long int, std::ratio<1, 1000000000>> duration_ns;
 
@@ -129,7 +132,7 @@ void saveMatrixCSV(string filename, T *matrix, int rows, int cols) {
     }
   }
   file.close();
-};
+}
 
 template <typename T>
 void printMatrixCSV(T *matrix, int rows, int cols) {
@@ -141,6 +144,6 @@ void printMatrixCSV(T *matrix, int rows, int cols) {
       index++;
     }
   }
-};
+}
 
 #endif // PROFILER_HEADER

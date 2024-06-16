@@ -1,0 +1,21 @@
+include_directories(${secda_tools_SOURCE_DIR}/secda_tools/)
+
+if(BUILD_ARM)
+    use_cross_compiler()
+    add_library(api_v2 OBJECT axi_api_v2.cc)
+    target_compile_options(api_v2 PUBLIC -fPIC)
+
+    add_library(api_v3 OBJECT axi_api_v3.cc)
+    target_compile_options(api_v3 PUBLIC -fPIC)
+else()
+    # use_host_compiler()
+    add_library(api_sysc_v2 OBJECT axi_api_sysc_v2.cc)
+    target_include_directories(api_sysc_v2 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v2 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v2 PUBLIC -fPIC -DSYSC)
+
+    add_library(api_sysc_v3 OBJECT axi_api_sysc_v3.cc)
+    target_include_directories(api_sysc_v3 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v3 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v3 PUBLIC -fPIC -DSYSC)
+endif()

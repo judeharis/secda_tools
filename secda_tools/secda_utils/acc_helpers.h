@@ -10,7 +10,7 @@
 #include <iostream>
 #include <typeinfo>
 
-#include "multi_threading.h"
+// #include "multi_threading.h"
 
 using namespace std;
 struct times {
@@ -34,10 +34,10 @@ struct del_params {
   int start_count;
   int *acc;
 
-  struct MultiThreadContext mt_context;
+  // struct MultiThreadContext mt_context;
   struct times total;
 
-  del_params() : total("total"), mt_context() {
+  del_params() : total("total") {
     init = false;
     unmap = false;
     delegated_nodes = 0;

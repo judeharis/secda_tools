@@ -7,6 +7,7 @@ cc_library(
     name = "secda_hw_utils",
     srcs = [
         "secda_hw_utils.sc.h",
+        "sysc_types.h",
         ],
     copts = common_copts,
     deps = [
@@ -25,7 +26,6 @@ cc_library(
         "axi4s_engine_generic.sc.h",
         "axi4s_engine_phy.sc.h",
         "phy.sc.h",
-        "sysc_types.h",
         ],
     copts = common_copts,
     deps = [

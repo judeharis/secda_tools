@@ -126,10 +126,14 @@ int *stream_dma::dma_get_outbuffer() { return output; }
 void stream_dma::dma_start_send(int length) {
   dmad->input_len = length;
   dmad->send = true;
-  data_transfered += length;
+  data_transfered += length * 4;
 }
 
-void stream_dma::dma_wait_send() { dma_mm2s_sync(); }
+void stream_dma::dma_wait_send() {
+  prf_start(0);
+  dma_mm2s_sync();
+  prf_end(0, send_wait);
+}
 
 int stream_dma::dma_check_send() { return 0; }
 
@@ -138,9 +142,28 @@ void stream_dma::dma_start_recv(int length) {
   dmad->recv = true;
 }
 
-void stream_dma::dma_wait_recv() { dma_s2mm_sync(); }
+void stream_dma::dma_wait_recv() {
+#ifdef ACC_PROFILE
+  data_transfered_recv += dmad->output_len * 4;
+#endif
+  prf_start(0);
+  dma_s2mm_sync();
+  prf_end(0, recv_wait);
+}
 
 int stream_dma::dma_check_recv() { return 0; }
+
+void stream_dma::print_times() {
+#ifdef ACC_PROFILE
+  cout << "-----------"
+       << "DMA: " << id << "-----------" << endl;
+  cout << "Data Transfered: " << data_transfered << " bytes" << endl;
+  cout << "Data Transfered Recv: " << data_transfered_recv << " bytes" << endl;
+  prf_out(TSCALE, send_wait);
+  prf_out(TSCALE, recv_wait);
+  cout << "================================================" << endl;
+#endif
+}
 
 // =========================== Multi DMAs
 multi_dma::multi_dma(int _dma_count, unsigned int *_dma_addrs,
@@ -228,6 +251,12 @@ void multi_dma::multi_dma_wait_recv() {
 void multi_dma::multi_dma_wait_recv_4() { multi_dma_wait_recv(); }
 
 int multi_dma::multi_dma_check_recv() { return 0; }
+
+void multi_dma::print_times() {
+  for (int i = 0; i < dma_count; i++) {
+    dmas[i].print_times();
+  }
+}
 
 // ================================================================================
 // Memory Access API

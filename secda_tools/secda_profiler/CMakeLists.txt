@@ -1,0 +1,10 @@
+include_directories(${secda_tools_SOURCE_DIR}/secda_tools/)
+
+if(BUILD_ARM)
+    use_cross_compiler()
+    add_library(profiler STATIC profiler.cc)
+else()
+    # use_host_compiler()
+    add_library(profiler OBJECT profiler.cc)
+    set_target_properties(profiler PROPERTIES LINKER_LANGUAGE CXX)
+endif()
