@@ -16,18 +16,24 @@ SC_MODULE(AXIS_ENGINE) {
   bool recv;
   int id;
 
+  int r_paddr = 0;
+  int w_paddr = 0;
+
   void DMA_MMS2() {
     int initial_free = din1.num_free();
     while (1) {
       while (!send) wait();
+      cout << "Send: " << input_len << endl;
+      int packets_sent = 0;
       for (int i = 0; i < input_len;) {
         // int d = DMA_input_buffer[i + input_offset];
         sc_uint<B> dO;
         for (int j = 0; j < B / 32; j++) {
-          int d = DMA_input_buffer[(i++) + input_offset];
+          int d = DMA_input_buffer[(i++) + input_offset * (B / 32)];
           dO.range((j + 1) * 32 - 1, j * 32) = d;
         }
         din1.write({dO, 1});
+        packets_sent++;
         wait();
       }
       while (initial_free != din1.num_free()) wait();
@@ -42,17 +48,19 @@ SC_MODULE(AXIS_ENGINE) {
       while (!recv) wait();
       bool last = false;
       int i = 0;
+      int packets_recv = 0;
       do {
         FDATA<B> d = dout1.read();
         while (i >= output_len) wait();
+        packets_recv++;
         last = d.tlast;
         for (int j = 0; j < B / 32; j++) {
-          DMA_output_buffer[(i++) + output_offset] =
+          DMA_output_buffer[(i++) + output_offset * (B / 32)] =
               d.data.range((j + 1) * 32 - 1, j * 32);
         }
         wait();
       } while (!last);
-      output_len = i;
+      output_len = packets_recv;
       recv = false;
       // // To ensure wait_send() does not evoke the sc_pause
       // while (send)
@@ -82,5 +90,8 @@ SC_MODULE(AXIS_ENGINE) {
   int output_len;
   int output_offset;
 };
+
+template class AXIS_ENGINE<32>;
+template class AXIS_ENGINE<64>;
 
 #endif

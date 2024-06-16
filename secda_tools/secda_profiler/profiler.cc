@@ -15,7 +15,8 @@ ClockCycles::ClockCycles(string _name, bool _resetOnSave) {
 }
 
 int SignalTrack::readCount() {
-  if (resetOnSave) value = 0;
+  if (resetOnSave)
+    value = 0;
   return value;
 }
 
@@ -26,7 +27,8 @@ SignalTrack::SignalTrack(string _name) {
 }
 
 void SignalTrack::increment(int val) {
-  if (values.size() < val+1) values.resize(val + 1);
+  if (values.size() < val + 1)
+    values.resize(val + 1);
   values[val]++;
 }
 
@@ -38,7 +40,8 @@ SignalTrack::SignalTrack(string _name, bool _resetOnSave) {
 }
 
 int ClockCycles::readCount() {
-  if (resetOnSave) value = 0;
+  if (resetOnSave)
+    value = 0;
   return value;
 }
 
@@ -75,21 +78,24 @@ void Profile::saveProfile(vector<Metric *> captured_metrics) {
           reinterpret_cast<ClockCycles *>(captured_metrics[i]);
       ClockCycles temp(capped_metric->name);
       temp.value = capped_metric->value;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TDataCount) {
       DataCount *capped_metric =
           reinterpret_cast<DataCount *>(captured_metrics[i]);
       DataCount temp(capped_metric->name);
       temp.value = capped_metric->value;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TBufferSpace) {
       BufferSpace *capped_metric =
           reinterpret_cast<BufferSpace *>(captured_metrics[i]);
       BufferSpace temp(capped_metric->name, capped_metric->total);
       temp.value = capped_metric->value;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TDataCountArray) {
       DataCountArray *capped_metric =
@@ -97,7 +103,8 @@ void Profile::saveProfile(vector<Metric *> captured_metrics) {
       for (int l = 0; l < capped_metric->value; l++) {
         DataCount temp(capped_metric->name + to_string(l));
         temp.value = capped_metric->array[l];
-        if (capped_metric->resetOnSave) capped_metric->array[l] = 0;
+        if (capped_metric->resetOnSave)
+          capped_metric->array[l] = 0;
         newRecord.push_back(temp);
       }
     } else if (captured_metrics[i]->type == TSignalTrack) {
@@ -109,9 +116,11 @@ void Profile::saveProfile(vector<Metric *> captured_metrics) {
           temp.value = capped_metric->values[l];
           newRecord.push_back(temp);
         }
-        if (capped_metric->resetOnSave) capped_metric->values[l] = 0;
+        if (capped_metric->resetOnSave)
+          capped_metric->values[l] = 0;
       }
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
     }
   }
   records.push_back(newRecord);
@@ -127,21 +136,24 @@ void Profile::saveBlank(vector<Metric *> captured_metrics) {
           reinterpret_cast<ClockCycles *>(captured_metrics[i]);
       ClockCycles temp(capped_metric->name);
       temp.value = -1;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TDataCount) {
       DataCount *capped_metric =
           reinterpret_cast<DataCount *>(captured_metrics[i]);
       DataCount temp(capped_metric->name);
       temp.value = -1;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TBufferSpace) {
       BufferSpace *capped_metric =
           reinterpret_cast<BufferSpace *>(captured_metrics[i]);
       BufferSpace temp(capped_metric->name, capped_metric->total);
       temp.value = -1;
-      if (capped_metric->resetOnSave) capped_metric->value = 0;
+      if (capped_metric->resetOnSave)
+        capped_metric->value = 0;
       newRecord.push_back(temp);
     } else if (captured_metrics[i]->type == TDataCountArray) {
       DataCountArray *capped_metric =
@@ -149,7 +161,8 @@ void Profile::saveBlank(vector<Metric *> captured_metrics) {
       for (int l = 0; l < capped_metric->value; l++) {
         DataCount temp(capped_metric->name + to_string(l));
         temp.value = -1;
-        if (capped_metric->resetOnSave) capped_metric->array[l] = 0;
+        if (capped_metric->resetOnSave)
+          capped_metric->array[l] = 0;
         newRecord.push_back(temp);
       }
     }
@@ -178,27 +191,56 @@ void Profile::incrementMetric(string name, int value) {
 void Profile::saveCSVRecords(string filename) {
 #ifdef SYSC
 
-  if (records.size() == 0) return;
+  if (records.size() == 0)
+    return;
   ofstream per_sim_file;
   per_sim_file.open(filename + ".csv");
 
   for (int i = 0; i < base_metrics.size(); i++) {
     per_sim_file << base_metrics[i].name;
-    if (i + 1 != base_metrics.size()) per_sim_file << ",";
-    else per_sim_file << endl;
+    if (i + 1 != base_metrics.size())
+      per_sim_file << ",";
+    else
+      per_sim_file << endl;
   }
 
   for (int i = 0; i < records[0].size(); i++) {
     per_sim_file << records[0][i].name;
-    if (i + 1 != records[0].size()) per_sim_file << ",";
-    else per_sim_file << endl;
+    if (i + 1 != records[0].size())
+      per_sim_file << ",";
+    else
+      per_sim_file << endl;
   }
-
+  std::vector<std::string> metric_names;
   for (int r = 0; r < records.size(); r++) {
     for (int m = 0; m < records[r].size(); m++) {
-      per_sim_file << records[r][m].value;
-      if (m + 1 != records[r].size()) per_sim_file << ",";
-      else per_sim_file << endl;
+      if (std::find(metric_names.begin(), metric_names.end(),
+                    records[r][m].name) == metric_names.end()) {
+        metric_names.push_back(records[r][m].name);
+      }
+    }
+  }
+  // create csv columns
+  for (int r = 0; r < records.size(); r++) {
+    for (int m = 0; m < metric_names.size(); m++) {
+      bool found = false;
+      for (int i = 0; i < records[r].size(); i++) {
+        if (records[r][i].name == metric_names[m]) {
+          per_sim_file << records[r][i].value;
+          if (m + 1 != metric_names.size())
+            per_sim_file << ",";
+          else
+            per_sim_file << endl;
+          found = true;
+        }
+      }
+      if (!found) {
+        per_sim_file << "0";
+        if (m + 1 != metric_names.size())
+          per_sim_file << ",";
+        else
+          per_sim_file << endl;
+      }
     }
   }
   per_sim_file.close();

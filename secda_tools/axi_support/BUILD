@@ -14,6 +14,7 @@ cc_library(
     ],
     copts = common_copts,
     deps = [
+        "//secda_tools/secda_profiler:profiler",
     ],
 )
 
@@ -30,6 +31,7 @@ cc_library(
     deps = [
         "@systemc//:systemc_lib",
         "//secda_tools/secda_integrator:secda_integrator",
+        "//secda_tools/secda_profiler:profiler",
     ],
 )
 
@@ -40,6 +42,9 @@ cc_library(
     ],
     hdrs = [
         "axi_api_v3.h"
+    ],
+    deps = [
+        "//secda_tools/secda_profiler:profiler",
     ],
     copts = common_copts,
 )
@@ -57,5 +62,6 @@ cc_library(
     deps = [
         "@systemc//:systemc_lib",
         "//secda_tools/secda_integrator:secda_integrator",
+        "//secda_tools/secda_profiler:profiler",
     ],
 )

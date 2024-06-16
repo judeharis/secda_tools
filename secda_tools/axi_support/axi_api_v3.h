@@ -16,6 +16,11 @@
 #include <string>
 #include <vector>
 
+#include "../secda_profiler/profiler.h"
+#define TSCALE microseconds
+#define SEC seconds
+#define TSCAST duration_cast<nanoseconds>
+
 // TODO: Remove hardcode addresses, make it cleaner
 using namespace std;
 #define MM2S_CONTROL_REGISTER 0x00
@@ -118,7 +123,7 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
 // Stream DMA API
 // ================================================================================
 template <int B>
-struct streams_dma {
+struct stream_dma {
   unsigned int *dma_addr;
   int *input;
   int *output;
@@ -131,15 +136,24 @@ struct streams_dma {
   static int s_id;
   const int id;
 
+  int data_transfered = 0;
+  int data_transfered_recv = 0;
+  duration_ns send_wait;
+  duration_ns recv_wait;
+
 #ifdef SYSC
   AXIS_ENGINE<B> *dmad;
 #endif
 
-  streams_dma(unsigned int _dma_addr, unsigned int _input,
-              unsigned int _input_size, unsigned int _output,
-              unsigned int _output_size);
+  stream_dma(unsigned int _dma_addr, unsigned int _input,
+             unsigned int _input_size, unsigned int _output,
+             unsigned int _output_size);
 
-  streams_dma();
+  stream_dma(unsigned int _dma_addr, unsigned int _input, unsigned int _r_paddr,
+             unsigned int _input_size, unsigned int _output,
+             unsigned int _w_paddr, unsigned int _output_size);
+
+  stream_dma();
 
   void dma_init(unsigned int _dma_addr, unsigned int _input,
                 unsigned int _input_size, unsigned int _output,
@@ -169,6 +183,8 @@ struct streams_dma {
 
   int dma_check_recv();
 
+  void print_times();
+
   //********************************** Unexposed Functions
   //**********************************
 
@@ -178,8 +194,9 @@ struct streams_dma {
   void dma_s2mm_sync();
 };
 
+template <int B>
 struct multi_dma {
-  struct streams_dma<32> *dmas;
+  struct stream_dma<B> *dmas;
   unsigned int *dma_addrs;
   unsigned int *dma_addrs_in;
   unsigned int *dma_addrs_out;
@@ -213,6 +230,8 @@ struct multi_dma {
   void multi_dma_wait_recv_4();
 
   int multi_dma_check_recv();
+
+  void print_times();
 };
 
 #endif

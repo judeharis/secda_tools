@@ -4,7 +4,7 @@ package(default_visibility = ["//visibility:public"])
 common_copts = ["-Wall"] + secda_copts()
 
 cc_library(
-    name = "threading_utils",
+    name = "secda_utils",
     hdrs = [
         "multi_threading.h",
         "acc_helpers.h",
