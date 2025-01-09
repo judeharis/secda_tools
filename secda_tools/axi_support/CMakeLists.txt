@@ -1,0 +1,63 @@
+include_directories(${secda_tools_SOURCE_DIR}/secda_tools/)
+
+if(BUILD_ARM)
+    use_cross_compiler()
+
+    # add_library(api_v2 OBJECT v2/axi_api_v2.cc)
+    add_library(api_v2 OBJECT v2/axi_api_v2.h)
+    set_target_properties(api_v2 PROPERTIES LINKER_LANGUAGE CXX)
+    target_compile_options(api_v2 PUBLIC -fPIC)
+
+    add_library(api_v3 OBJECT v3/axi_api_v3.h)
+    set_target_properties(api_v3 PROPERTIES LINKER_LANGUAGE CXX)
+    target_compile_options(api_v3 PUBLIC -fPIC)
+
+    add_library(api_v4 OBJECT v4/axi_api_v4.h)
+    set_target_properties(api_v4 PROPERTIES LINKER_LANGUAGE CXX)
+    target_compile_options(api_v4 PUBLIC -fPIC)
+
+    add_library(api_v5 OBJECT v5/axi_api_v5.h)
+    set_target_properties(api_v5 PROPERTIES LINKER_LANGUAGE CXX)
+    target_compile_options(api_v5 PUBLIC -fPIC)
+    target_include_directories(api_v5 PUBLIC)
+
+    if(BUILD_KRIA)
+        find_library(CMALIB NAMES libcma.so PATHS "/home/jude/Workspace/SECDA/secda_tools/secda_tools/axi_support/arch64/")
+        message(STATUS "libcma: ${CMALIB}")
+        target_link_libraries(api_v5 PUBLIC ${CMALIB} pthread)
+        target_compile_options(api_v5 PUBLIC -fPIC -DKRIA)
+
+    else()
+        find_library(CMALIB NAMES libcma.so PATHS "/home/jude/Workspace/SECDA/secda_tools/secda_tools/axi_support/arm32/")
+        message(STATUS "libcma: ${CMALIB}")
+        target_link_libraries(api_v5 PUBLIC ${CMALIB} pthread)
+        target_compile_options(api_v5 PUBLIC -fPIC)
+    endif()
+
+else()
+    # use_host_compiler()
+    # add_library(api_sysc_v2 OBJECT v2/axi_api_sysc_v2.cc)
+    add_library(api_sysc_v2 OBJECT v2/axi_api_v2.h)
+    set_target_properties(api_sysc_v2 PROPERTIES LINKER_LANGUAGE CXX)
+    target_include_directories(api_sysc_v2 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v2 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v2 PUBLIC -fPIC -DSYSC)
+
+    add_library(api_sysc_v3 OBJECT v3/axi_api_v3.h)
+    set_target_properties(api_sysc_v3 PROPERTIES LINKER_LANGUAGE CXX)
+    target_include_directories(api_sysc_v3 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v3 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v3 PUBLIC -fPIC -DSYSC)
+
+    add_library(api_sysc_v4 OBJECT v4/axi_api_v4.h)
+    set_target_properties(api_sysc_v4 PROPERTIES LINKER_LANGUAGE CXX)
+    target_include_directories(api_sysc_v4 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v4 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v4 PUBLIC -fPIC -DSYSC)
+
+    add_library(api_sysc_v5 OBJECT v5/axi_api_v5.h)
+    set_target_properties(api_sysc_v5 PROPERTIES LINKER_LANGUAGE CXX)
+    target_include_directories(api_sysc_v5 PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(api_sysc_v5 PUBLIC profiler ${SYSC_LIBRARIES})
+    target_compile_options(api_sysc_v5 PUBLIC -fPIC -DSYSC)
+endif()

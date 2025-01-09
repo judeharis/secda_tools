@@ -8,7 +8,9 @@
 
 // Follows by GEMMLOWP multi-threading interface
 inline int DoSomeNOPs() { return 16; }
-const int kMaxBusyWaitNOPs = 4 * 1000 * 1000;
+// const int kMaxBusyWaitNOPs = 4 * 1000 * 1000;
+const int kMaxBusyWaitNOPs = 4 *  1000;
+
 
 // Workload
 struct Task {

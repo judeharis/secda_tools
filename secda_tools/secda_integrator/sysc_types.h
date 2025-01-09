@@ -1,10 +1,10 @@
 #ifndef SYSC_TYPES_H
 #define SYSC_TYPES_H
 
+#include "secda_hw_utils.sc.h"
 #include <iomanip>
 #include <iostream>
 #include <systemc.h>
-#include "secda_hw_utils.sc.h"
 
 #ifndef DWAIT
 #ifndef __SYNTHESIS__
@@ -14,7 +14,15 @@
 #endif
 #endif
 
+#ifndef AXI_TYPE
+#define AXI_TYPE sc_uint
+#endif
+
 #define INITSIGPORT(X, SID) X((std::string(#X) + std::to_string(SID)).c_str())
+
+#define SIGWRITE(X, VAL)                                                       \
+  X.write(VAL);                                                                \
+  X##S.write(VAL)
 
 // Hardware struct to contain output signal and port
 struct sc_out_sig {
@@ -31,6 +39,19 @@ struct sc_out_sig {
   void bind(sc_out<int> &sig) { oS.bind(sig); }
   void operator()(sc_out<int> &sig) { bind(sig); }
 };
+
+typedef struct _DATA64 {
+  sc_uint<64> data;
+  bool tlast;
+  void operator=(_DATA64 _data) {
+    data = _data.data;
+    tlast = _data.tlast;
+  }
+  inline friend ostream &operator<<(ostream &os, const _DATA64 &v) {
+    cout << "data&colon; " << v.data << " tlast: " << v.tlast;
+    return os;
+  }
+} DATA64;
 
 typedef struct _DATA {
   sc_uint<32> data;
@@ -62,13 +83,25 @@ typedef struct _SDATA {
 
 template <int W>
 struct _FDATA {
-  sc_uint<W> data;
+  sc_biguint<W> data;
   bool tlast;
   inline friend ostream &operator<<(ostream &os, const _FDATA &v) {
     cout << "data&colon; " << v.data << " tlast: " << v.tlast;
     return os;
   }
 };
+
+template <int W, template <int> class T>
+struct _BDATA {
+  T<W> data;
+  bool tlast;
+  inline friend ostream &operator<<(ostream &os, const _BDATA &v) {
+    cout << "data&colon; " << v.data << " tlast: " << v.tlast;
+    return os;
+  }
+};
+
+#ifndef __SYNTHESIS__
 
 struct rm_data2 {
   sc_fifo_in<DATA> dout1;
@@ -165,5 +198,10 @@ struct rm_data2 {
 
 template <int W>
 using FDATA = _FDATA<W>;
+
+template <int W, template <int> typename T>
+using BDATA = _BDATA<W, T>;
+
+#endif
 
 #endif

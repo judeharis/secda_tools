@@ -1,5 +1,5 @@
-#ifndef SECDA_TFLITE_UTILS
-#define SECDA_TFLITE_UTILS
+#ifndef SECDA_TOOLS_UTILS
+#define SECDA_TOOLS_UTILS
 
 #include <cmath>
 
@@ -150,4 +150,4 @@ void unpadT_matrix(int N_dim, int M_dim, int tN, int tM, int8_t** padded_A,
   }
 }
 
-#endif // SECDA_TFLITE_UTILS
+#endif // SECDA_TOOLS_UTILS

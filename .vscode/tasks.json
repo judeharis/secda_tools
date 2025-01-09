@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "exp",
+      "type": "shell",
+      // "command": "bazel6 build --jobs 1 //secda_tools:test --cxxopt='-DSYSC' --sandbox_debug --spawn_strategy=standalone",
+      "command": "bazel6 build --jobs 1 //tests:exp --cxxopt='-DSYSC' --sandbox_debug --spawn_strategy=standalone --@secda_tools//:config=sysc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    // {
+    //   "label": "test2",
+    //   "type": "shell",
+    //   "command": "bazel6 build --jobs 1 //secda_tools:test --cxxopt='-DSYSC' --sandbox_debug --spawn_strategy=standalone --enable_bzlmod",
+    //   "group": {
+    //     "kind": "build",
+    //     "isDefault": true
+    //   }
+    // },
+  ]
+}
