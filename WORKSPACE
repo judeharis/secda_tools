@@ -20,6 +20,11 @@ gcc_register_toolchain(
     target_arch = ARCHS.x86_64,
 )
 
+
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+
+bazel_skylib_workspace()
+
 # http_archive(
 #     name = "rules_foreign_cc",
 #     sha256 = "476303bd0f1b04cc311fc258f1708a5f6ef82d3091e53fd1977fa20383425a6a",
