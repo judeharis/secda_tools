@@ -14,7 +14,15 @@
 #endif
 #endif
 
+#ifndef AXI_TYPE
+#define AXI_TYPE sc_uint
+#endif
+
 #define INITSIGPORT(X, SID) X((std::string(#X) + std::to_string(SID)).c_str())
+
+#define SIGWRITE(X, VAL)                                                       \
+  X.write(VAL);                                                                \
+  X##S.write(VAL)
 
 // Hardware struct to contain output signal and port
 struct sc_out_sig {
@@ -75,9 +83,19 @@ typedef struct _SDATA {
 
 template <int W>
 struct _FDATA {
-  sc_uint<W> data;
+  sc_biguint<W> data;
   bool tlast;
   inline friend ostream &operator<<(ostream &os, const _FDATA &v) {
+    cout << "data&colon; " << v.data << " tlast: " << v.tlast;
+    return os;
+  }
+};
+
+template <int W, template <int> class T>
+struct _BDATA {
+  T<W> data;
+  bool tlast;
+  inline friend ostream &operator<<(ostream &os, const _BDATA &v) {
     cout << "data&colon; " << v.data << " tlast: " << v.tlast;
     return os;
   }
@@ -180,6 +198,10 @@ struct rm_data2 {
 
 template <int W>
 using FDATA = _FDATA<W>;
+
+template <int W, template <int> typename T>
+using BDATA = _BDATA<W, T>;
+
 #endif
 
 #endif
