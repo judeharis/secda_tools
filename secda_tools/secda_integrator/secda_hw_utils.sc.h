@@ -6,15 +6,21 @@
 template <typename T, unsigned int W>
 struct sbram {
   T data[W];
-  int size = W;
-  int access_count = 0;
+  int size;
+  int access_count;
   int idx;
-  sbram() {}
+  sbram() {
+    size = W;
+    access_count = 0;
+  }
   T &operator[](int i) {
     idx = i;
     return data[i];
   }
-  int &operator=(int val) { data[idx] = val; return val; }
+  int &operator=(int val) {
+    data[idx] = val;
+    return data[idx];
+  }
   void write(int i, T val) { data[i] = val; }
   T read(int i) { return data[i]; }
 };

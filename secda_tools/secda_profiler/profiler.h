@@ -2,6 +2,7 @@
 #ifndef PROFILER_HEADER
 #define PROFILER_HEADER
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -13,9 +14,17 @@
 #define prf_end(N, X)                                                          \
   auto end##N = chrono::high_resolution_clock::now();                          \
   X += end##N - start##N;
+
+#define prf_start_x(S) S = chrono::high_resolution_clock::now();
+#define prf_end_x(N, S, X)                                                     \
+  auto end##N = chrono::high_resolution_clock::now();                          \
+  X += end##N - S;
 #else
+
 #define prf_start(N)
 #define prf_end(N, X)
+#define prf_start_x(S)
+#define prf_end_x(N, S, X)
 #endif
 
 using namespace std;
@@ -25,6 +34,14 @@ using namespace std::chrono;
 
 #define prf_file_out(TSCALE, X, file)                                          \
   file << #X << "," << duration_cast<TSCALE>(X).count() << endl;
+
+#define prf_file_out_x(TSCALE, X, file)                                        \
+  file << duration_cast<TSCALE>(X).count() << ",";
+
+#define prf_file_out_l(TSCALE, X, file)                                        \
+  file << duration_cast<TSCALE>(X).count();
+
+#define prf_count(TSCALE, X) duration_cast<TSCALE>(X).count()
 
 typedef duration<long long int, std::ratio<1, 1000000000>> duration_ns;
 
@@ -129,7 +146,7 @@ void saveMatrixCSV(string filename, T *matrix, int rows, int cols) {
     }
   }
   file.close();
-};
+}
 
 template <typename T>
 void printMatrixCSV(T *matrix, int rows, int cols) {
@@ -141,6 +158,6 @@ void printMatrixCSV(T *matrix, int rows, int cols) {
       index++;
     }
   }
-};
+}
 
 #endif // PROFILER_HEADER

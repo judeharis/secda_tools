@@ -1,0 +1,11 @@
+include_directories(${secda_tools_SOURCE_DIR}/secda_tools/)
+
+if(NOT BUILD_ARM)
+    # use_host_compiler()
+    add_library(secda_integrator OBJECT .)
+    set_target_properties(secda_integrator PROPERTIES LINKER_LANGUAGE CXX)
+    # target_include_directories(secda_integrator PUBLIC .)
+    target_include_directories(secda_integrator PUBLIC . ${SYSC_INCLUDES})
+    target_link_libraries(secda_integrator PUBLIC ${SYSC_LIBRARIES})
+    target_compile_options(secda_integrator PUBLIC -fPIC -DSYSC)
+endif()

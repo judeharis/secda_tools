@@ -2,8 +2,8 @@
 #define AXI_API_V2_H
 
 #ifdef SYSC
-#include "../secda_integrator/axi4s_engine_generic.sc.h"
-#include "../secda_integrator/sysc_types.h"
+#include "../../secda_integrator/axi4s_engine.sc.h"
+// #include "../secda_integrator/axi4s_engine_phy.sc.h"
 #endif
 
 #include <fcntl.h>
@@ -12,9 +12,14 @@
 
 #include <chrono>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "../../secda_profiler/profiler.h"
+#define TSCALE microseconds
+#define TSCAST duration_cast<nanoseconds>
 
 // TODO: Remove hardcode addresses, make it cleaner
 using namespace std;
@@ -99,6 +104,14 @@ T *mm_alloc_rw(unsigned int address, unsigned int buffer_size) {
   if (addr == (void *)-1) exit(EXIT_FAILURE);
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
+
+  // int dh = open("/dev/mem", O_RDWR | O_SYNC);
+  // void* mm =
+  //     mmap(NULL, buffer_size, PROT_READ | PROT_WRITE, MAP_SHARED, dh,
+  //     address);
+  // close(dh);
+  // if (mm == (void*)-1) exit(EXIT_FAILURE);
+  // return reinterpret_cast<T*>(mm);
 }
 
 template <typename T>
@@ -112,13 +125,25 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
   if (addr == (void *)-1) exit(EXIT_FAILURE);
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
+  // int dh = open("/dev/mem", O_RDWR | O_SYNC);
+  // void* mm = mmap(NULL, buffer_size, PROT_READ, MAP_SHARED | MAP_NORESERVE,
+  // dh,
+  //                 address);
+  // close(dh);
+  // if (mm == (void*)-1) exit(EXIT_FAILURE);
+  // return reinterpret_cast<T*>(mm);
 }
+
+// struct mm_dma {
+// #ifdef SYSC
+//   AXI4MM_ENGINE* mmdma;
+// #endif
+// };
 
 // ================================================================================
 // Stream DMA API
 // ================================================================================
-template <int B>
-struct streams_dma {
+struct stream_dma {
   unsigned int *dma_addr;
   int *input;
   int *output;
@@ -131,15 +156,25 @@ struct streams_dma {
   static int s_id;
   const int id;
 
+  int data_transfered = 0;
+  int data_transfered_recv = 0;
+  duration_ns send_wait;
+  duration_ns recv_wait;
+
 #ifdef SYSC
-  AXIS_ENGINE<B> *dmad;
+  // AXIS_ENGINE rdmad;
+  AXIS_ENGINE *dmad;
 #endif
 
-  streams_dma(unsigned int _dma_addr, unsigned int _input,
-              unsigned int _input_size, unsigned int _output,
-              unsigned int _output_size);
+  stream_dma(unsigned int _dma_addr, unsigned int _input,
+             unsigned int _input_size, unsigned int _output,
+             unsigned int _output_size);
 
-  streams_dma();
+  stream_dma(unsigned int _dma_addr, unsigned int _input, unsigned int _r_paddr,
+             unsigned int _input_size, unsigned int _output,
+             unsigned int _w_paddr, unsigned int _output_size);
+
+  stream_dma();
 
   void dma_init(unsigned int _dma_addr, unsigned int _input,
                 unsigned int _input_size, unsigned int _output,
@@ -169,6 +204,8 @@ struct streams_dma {
 
   int dma_check_recv();
 
+  void print_times();
+
   //********************************** Unexposed Functions
   //**********************************
 
@@ -179,7 +216,7 @@ struct streams_dma {
 };
 
 struct multi_dma {
-  struct streams_dma<32> *dmas;
+  struct stream_dma *dmas;
   unsigned int *dma_addrs;
   unsigned int *dma_addrs_in;
   unsigned int *dma_addrs_out;
@@ -213,6 +250,19 @@ struct multi_dma {
   void multi_dma_wait_recv_4();
 
   int multi_dma_check_recv();
+
+  void print_times();
+};
+
+// ================================================================================
+// Memory Access API
+// ================================================================================
+
+struct mcontroller {
+
+  void assign(int *dst, int *src, int value);
+
+  void assign_sim(int *dst, int *src, int value);
 };
 
 #endif

@@ -1,5 +1,5 @@
 # Enable Bzlmod for every Bazel command
 common --enable_bzlmod
-common --lockfile_mode=off
+# common --lockfile_mode=off
 common --registry=https://raw.githubusercontent.com/judeharis/bazel-central-registry/main/
 # common --registry=file:///mnt/Crucial/WorkspaceB/bazel-central-registry/

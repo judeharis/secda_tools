@@ -1,0 +1,10 @@
+include_directories(${secda_tools_SOURCE_DIR}/secda_tools/)
+
+if(NOT BUILD_ARM)
+    # use_host_compiler()
+    add_library(ap_sysc OBJECT .)
+    set_target_properties(ap_sysc PROPERTIES LINKER_LANGUAGE CXX)
+    target_include_directories(ap_sysc PUBLIC ${SYSC_INCLUDES})
+    target_link_libraries(ap_sysc PUBLIC ${SYSC_LIBRARIES})
+    target_compile_options(ap_sysc PUBLIC -fPIC -DSYSC)
+endif()
