@@ -1,7 +1,8 @@
 module(
   name = "secda_tools",
-  version = "0.1.0",
+  version = "0.2.0",
 )
 
 bazel_dep(name = "rules_cc", version = "0.0.9")
 bazel_dep(name = "systemc", version = "2.3.3")
+bazel_dep(name = "bazel_skylib", version = "1.4.1")
