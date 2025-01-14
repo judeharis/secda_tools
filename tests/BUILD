@@ -12,6 +12,6 @@ cc_binary(
     srcs = ["exp.cc"],
     copts = common_copts,
     deps = [
-        "//secda_tools:secda_toolsv4",
+        "//secda_tools:secda_toolsv5",
     ],
 )
