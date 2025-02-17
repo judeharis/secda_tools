@@ -29,7 +29,7 @@ cc_library(
     ],
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         "//secda_tools/secda_integrator:secda_integrator",
         "//secda_tools/secda_profiler:profiler",
     ],
@@ -60,7 +60,7 @@ cc_library(
     ],
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         "//secda_tools/secda_integrator:secda_integrator",
         "//secda_tools/secda_profiler:profiler",
     ],
@@ -82,7 +82,7 @@ cc_library(
         "//secda_tools/secda_profiler:profiler",
         "//secda_tools/secda_utils:secda_utils",
     ] + select({
-        "//:sysc": [ "@systemc//:systemc_lib",
+        "//:sysc": [ "@systemc_bazel//:systemc_lib",
         "//secda_tools/secda_integrator:secda_integrator"],
         "//conditions:default": [],
     }),
@@ -117,7 +117,7 @@ cc_library(
     ] + select({
         "//:sysc": [
             "//secda_tools/secda_integrator",
-            "@systemc//:systemc_lib",
+            "@systemc_bazel//:systemc_lib",
         ],
         "//conditions:default": ["//secda_tools/axi_support:libxlnk_cma"],
     })

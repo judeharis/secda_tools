@@ -19,7 +19,7 @@ cc_library(
     name = "secda_tools_sim",
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         "//secda_tools/secda_profiler:profiler",
         "//secda_tools/ap_sysc:ap_sysc",
         "//secda_tools/secda_integrator:secda_integrator",
@@ -44,7 +44,7 @@ cc_library(
     name = "secda_tools_simv3",
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         "//secda_tools/secda_profiler:profiler",
         "//secda_tools/ap_sysc:ap_sysc",
         "//secda_tools/secda_integrator:secda_integrator",
@@ -73,7 +73,7 @@ cc_library(
         "//secda_tools/secda_utils:secda_utils",
         "//secda_tools/axi_support:axi_supportv4",
     ] + select({
-        "//:sysc": [ "@systemc//:systemc_lib",
+        "//:sysc": [ "@systemc_bazel//:systemc_lib",
         "//secda_tools/ap_sysc:ap_sysc",
         "//secda_tools/secda_integrator:secda_integrator"],
         "//conditions:default": [],
@@ -88,7 +88,7 @@ cc_library(
         "//secda_tools/secda_utils:secda_utils",
         "//secda_tools/axi_support:axi_supportv5",
     ] + select({
-        "//:sysc": [ "@systemc//:systemc_lib",
+        "//:sysc": [ "@systemc_bazel//:systemc_lib",
         "//secda_tools/ap_sysc:ap_sysc",
         "//secda_tools/secda_integrator:secda_integrator"],
         "//conditions:default": [],

@@ -13,6 +13,6 @@ cc_library(
     ],
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
     ],
 )
