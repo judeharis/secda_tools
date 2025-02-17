@@ -11,7 +11,7 @@ cc_library(
         ],
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         "//secda_tools/ap_sysc:ap_sysc",
     ],
 )
@@ -29,7 +29,7 @@ cc_library(
         ],
     copts = common_copts,
     deps = [
-        "@systemc//:systemc_lib",
+        "@systemc_bazel//:systemc_lib",
         ":secda_hw_utils",
         "//secda_tools/ap_sysc:ap_sysc",
     ],

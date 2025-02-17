@@ -2,4 +2,4 @@
 common --enable_bzlmod
 # common --lockfile_mode=off
 common --registry=https://raw.githubusercontent.com/judeharis/bazel-central-registry/main/
-# common --registry=file:///mnt/Crucial/WorkspaceB/bazel-central-registry/
+# common --registry=file:///home/jude/Workspace/SECDA/bazel-central-registry/
