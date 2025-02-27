@@ -12,9 +12,9 @@ SC_MODULE(AXIS_ENGINE) {
   sc_in<bool> reset;
   sc_fifo_in<BDATA<B, T>> dout1;
   sc_fifo_out<BDATA<B, T>> din1;
-  bool send;
-  bool recv;
-  int id;
+  bool send = false;
+  bool recv = false;
+  int id = 0;
 
   int r_paddr = 0;
   int w_paddr = 0;
