@@ -99,6 +99,32 @@ struct _BDATA {
     cout << "data&colon; " << v.data << " tlast: " << v.tlast;
     return os;
   }
+  void operator=(_BDATA<W, T> _data) {
+    data = _data.data;
+    tlast = _data.tlast;
+  }
+
+  void pack(sc_uint<W / 4> a1, sc_uint<W / 4> a2, sc_uint<W / 4> a3, sc_uint<W / 4> a4) {
+    data.range(((W * 1 / 4) - 1), 0) = a1;
+    data.range(((W * 2 / 4) - 1), (W * 1 / 4)) = a2;
+    data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
+    data.range(((W * 4 / 4) - 1), (W * 3 / 4)) = a4;
+  }
+
+  void pack(sc_int<W / 4> a1, sc_int<W / 4> a2, sc_int<W / 4> a3, sc_int<W / 4> a4) {
+    data.range(((W * 1 / 4) - 1), 0) = a1;
+    data.range(((W * 2 / 4) - 1), (W * 1 / 4)) = a2;
+    data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
+    data.range(((W * 4 / 4) - 1), (W * 3 / 4)) = a4;
+  }
+
+  // void pack(T<W / 4> a1, T<W / 4> a2, T<W / 4> a3, T<W / 4> a4) {
+  //   data.range(((W * 1 / 4) - 1), 0) = a1;
+  //   data.range(((W * 2 / 4) - 1), (W * 1 / 4)) = a2;
+  //   data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
+  //   data.range(((W * 4 / 4) - 1), (W * 3 / 4)) = a4;
+  // }
+  
 };
 
 #ifndef __SYNTHESIS__

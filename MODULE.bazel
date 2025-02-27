@@ -1,6 +1,6 @@
 module(
   name = "secda_tools",
-  version = "0.2.0c",
+  version = "0.2.0d",
 )
 
 bazel_dep(name = "rules_cc", version = "0.0.9")

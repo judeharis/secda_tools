@@ -384,7 +384,12 @@ void multi_dma<B, T>::multi_dma_change_start(int offset) {
 }
 
 template <int B, int T>
-void multi_dma<B, T>::multi_dma_change_start_4(int offset) {}
+void multi_dma<B, T>::multi_dma_change_start_4(int offset) {
+  dmas[0].dma_change_start(offset);
+  dmas[1].dma_change_start(offset);
+  dmas[2].dma_change_start(offset);
+  dmas[3].dma_change_start(offset);
+}
 
 template <int B, int T>
 void multi_dma<B, T>::multi_dma_change_end(int offset) {
@@ -442,7 +447,9 @@ void multi_dma<B, T>::multi_dma_wait_recv() {
 }
 
 template <int B, int T>
-void multi_dma<B, T>::multi_dma_wait_recv_4() {}
+void multi_dma<B, T>::multi_dma_wait_recv_4() {
+  multi_dma_wait_recv();
+}
 
 template <int B, int T>
 int multi_dma<B, T>::multi_dma_check_recv() {
