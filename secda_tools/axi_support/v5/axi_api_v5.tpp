@@ -80,26 +80,26 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
                                 unsigned int _output_size) {
   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
 
-#ifdef KRIA
-  cout << "KRIA ALLOC" << endl;
+  // #ifdef KRIA
+  cerr << "KRIA ALLOC" << endl;
   input = mm_alloc_rw<int>(_input, _input_size);
   output = mm_alloc_r<int>(_output, _output_size);
   input_size = _input_size;
   output_size = _output_size;
   input_addr = _input;
   output_addr = _output;
-#else
-  cout << "CMA ALLOC" << endl;
-  input = cmap_alloc_rw<int>(_input_size);
-  output = cmap_alloc_rw<int>(_output_size);
-  int *input_buf = reinterpret_cast<int *>(input);
-  int *output_buf = reinterpret_cast<int *>(output);
-  input_addr = cma_get_phy_addr(input_buf);
-  output_addr = cma_get_phy_addr(output_buf);
-#endif
+  // #else
+  //   cout << "CMA ALLOC" << endl;
+  //   input = cmap_alloc_rw<int>(_input_size);
+  //   output = cmap_alloc_rw<int>(_output_size);
+  //   int *input_buf = reinterpret_cast<int *>(input);
+  //   int *output_buf = reinterpret_cast<int *>(output);
+  //   input_addr = cma_get_phy_addr(input_buf);
+  //   output_addr = cma_get_phy_addr(output_buf);
+  // #endif
 
   initDMA(input_addr, output_addr);
-  cout << "DMA " << id << " | input_addr: " << HEX(input_addr)
+  cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
        << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
        << " size: " << _output_size << endl;
 }
