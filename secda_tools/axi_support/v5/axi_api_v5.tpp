@@ -52,6 +52,114 @@ unsigned int acc_regmap<T>::readToControlReg(string reg_name) {
 // Make this into a struct based API
 
 // ================================================================================
+// AXIMM API
+// ================================================================================
+template <typename T>
+int mm_buffer<T>::mm_id = 0;
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size) : id(mm_id++) {
+  size = _size;
+  addr = _addr / 4; // Convert to 32-bit words
+  buffer = mm_alloc_rw<T>(_addr, _size * sizeof(T));
+}
+
+template <typename T>
+T *mm_buffer<T>::get_buffer() {
+  return buffer;
+}
+template <typename T>
+void mm_buffer<T>::sync_from_acc() {}
+
+template <typename T>
+void mm_buffer<T>::sync_to_acc() {}
+
+// ================================================================================
+// ACC Control API
+// ================================================================================
+
+template <typename T>
+axi4lite_ctrl<T>::axi4lite_ctrl() {}
+
+template <typename T>
+axi4lite_ctrl<T>::axi4lite_ctrl(int *base_addr) {
+  reg_base = base_addr;
+}
+
+template <typename T>
+unsigned int axi4lite_ctrl<T>::read_reg(unsigned int offset) {
+  void *base_addr = (void *)reg_base;
+  return *(
+      (volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset));
+}
+
+template <typename T>
+void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
+  void *base_addr = (void *)reg_base;
+  *((volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset)) =
+      val;
+}
+
+template <typename T>
+acc_ctrl<T>::acc_ctrl() {}
+
+template <typename T>
+void acc_ctrl<T>::start_acc() {
+  write_reg(0x14, 1);
+}
+
+template <typename T>
+void acc_ctrl<T>::wait_done() {
+  while (!read_reg(0x1C)) {
+    msync(reg_base, PAGE_SIZE, MS_SYNC);
+  }
+  write_reg(0x14, 0);
+  while (read_reg(0x1C)) {
+    msync(reg_base, PAGE_SIZE, MS_SYNC);
+  }
+}
+
+template <typename T>
+hwc_ctrl<T>::hwc_ctrl(){};
+
+template <typename T>
+void hwc_ctrl<T>::init_hwc(int count) {hwc_count = count;}
+
+template <typename T>
+void hwc_ctrl<T>::reset_hwc() {
+  write_reg(0x14, 1); // Reset HWC
+  msync(reg_base, PAGE_SIZE, MS_SYNC);
+  write_reg(0x14, 0); // Clear reset
+}
+
+template <typename T>
+void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+    return;
+  }
+  write_reg(0x1C + (hwc * 0x18), target_state);
+}
+
+template <typename T>
+unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+    return -1;
+  }
+  return read_reg(0x20 + (hwc * 0x18));
+}
+
+template <typename T>
+unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+    return -1;
+  }
+  return read_reg(0x24 + (hwc * 0x18));
+}
+
+// ================================================================================
 // Stream DMA API
 // ================================================================================
 template <int B, int T>
@@ -168,6 +276,7 @@ void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {
 template <int B, int T>
 void stream_dma<B, T>::dma_free() {
   cout << "DMA: " << id << " freed " << endl;
+  print_times();
   cma_free(input);
   cma_free(output);
   cma_munmap(dma_addr, PAGE_SIZE);
@@ -231,7 +340,7 @@ void stream_dma<B, T>::dma_wait_recv() {
   dma_s2mm_sync();
   msync(output, output_size, MS_SYNC);
   // prf_end(0, recv_wait);
-  prf_end_x(0, send_start, recv_wait);
+  prf_end_x(1, send_start, recv_wait);
 #ifdef ACC_PROFILE
   data_transfered_recv += readMappedReg(S2MM_LENGTH);
   data_recv_count++;

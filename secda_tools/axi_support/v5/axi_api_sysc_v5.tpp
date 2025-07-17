@@ -40,6 +40,109 @@ unsigned int acc_regmap<T>::readToControlReg(string reg_name) {
 // ================================================================================
 
 // Make this into a struct based API (for SystemC)
+// ================================================================================
+// ACC Control API
+// ================================================================================
+
+template <typename T>
+axi4lite_ctrl<T>::axi4lite_ctrl() {}
+
+template <typename T>
+axi4lite_ctrl<T>::axi4lite_ctrl(int *base_addr) {}
+
+template <typename T>
+unsigned int axi4lite_ctrl<T>::read_reg(unsigned int offset) {
+  cout << "This call should not be used in simulation" << endl;
+  return 0;
+}
+
+template <typename T>
+void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
+  cout << "This call should not be used in simulation" << endl;
+}
+
+template <typename T>
+acc_ctrl<T>::acc_ctrl() {
+  reg_base = nullptr;
+  string name("ACC_CONTROL");
+  ctrl = new AXI4LITE_CONTROL(&name[0]);
+}
+
+template <typename T>
+void acc_ctrl<T>::start_acc() {
+  start = true;
+  ctrl->start_bool = start;
+}
+
+template <typename T>
+void acc_ctrl<T>::wait_done() {
+  sc_start();
+  start = false;
+  done = ctrl->done.read();
+}
+
+template <typename T>
+hwc_ctrl<T>::hwc_ctrl(){};
+
+template <typename T>
+void hwc_ctrl<T>::init_hwc(int count) {
+  hwc_count = count;
+}
+
+template <typename T>
+void hwc_ctrl<T>::reset_hwc() {
+  // write_reg(0x14, 1); // Reset HWC
+  // msync(reg_base, PAGE_SIZE, MS_SYNC);
+  // write_reg(0x14, 0); // Clear reset
+}
+
+template <typename T>
+void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
+  cout << "This call should not be used in simulation" << endl;
+}
+
+template <typename T>
+unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
+  return 0;
+}
+
+template <typename T>
+unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
+  return 0;
+}
+
+// ================================================================================
+// AXIMM API
+// ================================================================================
+template <typename T>
+int mm_buffer<T>::mm_id = 0;
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
+    : id(mm_id++),
+      buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id)).c_str(), 0,
+                 _size - 1) {
+  size = _size;
+  addr = 0;
+  buffer = (T *)malloc(_size * sizeof(T));
+  // Initialize with zeros
+  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
+}
+
+template <typename T>
+T *mm_buffer<T>::get_buffer() {
+  return buffer;
+}
+
+template <typename T>
+void mm_buffer<T>::sync_from_acc() {
+  buffer_chn.burst_read(0, size, (T *)&buffer[0]);
+}
+
+template <typename T>
+void mm_buffer<T>::sync_to_acc() {
+  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
+}
 
 // ================================================================================
 // Stream DMA API
