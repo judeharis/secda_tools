@@ -1,5 +1,5 @@
-#ifndef AXI_API_V4_H
-#define AXI_API_V4_H
+#ifndef AXI_API_V5_H
+#define AXI_API_V5_H
 
 #ifdef SYSC
 #include "../../secda_integrator/axi4s_engine_generic.sc.h"
@@ -70,6 +70,18 @@ template <typename T>
 T readMappedReg(int *acc, uint32_t offset) {
   void *base_addr = (void *)acc;
   return *((volatile T *)(reinterpret_cast<char *>(base_addr) + offset));
+}
+
+template <typename T>
+void setReg(int *acc, uint32_t offset) {
+  void *base_addr = (void *)acc;
+  *((volatile char *)(reinterpret_cast<char *>(base_addr) + offset)) = 1;
+}
+template <typename T>
+char getReg(int *acc, uint32_t offset) {
+  void *base_addr = (void *)acc;
+  return *(
+      (volatile unsigned char *)(reinterpret_cast<char *>(base_addr) + offset));
 }
 
 template <typename T>
@@ -181,6 +193,111 @@ T *cmap_map_rw(unsigned int address, unsigned int buffer_size) {
 // }
 
 #endif
+
+// ================================================================================
+// ACC Control API
+// ================================================================================
+
+template <typename T>
+struct axi4lite_ctrl {
+  int *reg_base;
+
+  axi4lite_ctrl();
+  axi4lite_ctrl(int *base_addr);
+  unsigned int read_reg(unsigned int offset);
+  void write_reg(unsigned int offset, unsigned int val);
+};
+
+template <typename T>
+struct acc_ctrl : public axi4lite_ctrl<T> {
+
+#ifdef SYSC
+  AXI4LITE_CONTROL *ctrl;
+#endif
+  bool start = false;
+  bool done = false;
+
+  acc_ctrl();
+  void start_acc();
+  void wait_done();
+
+private:
+  using axi4lite_ctrl<T>::reg_base;
+
+public:
+  using axi4lite_ctrl<T>::read_reg;
+  using axi4lite_ctrl<T>::write_reg;
+  using axi4lite_ctrl<T>::axi4lite_ctrl;
+};
+
+template <typename T>
+struct hwc_ctrl {
+#ifdef SYSC
+  AXI4LITE_CONTROL *ctrl;
+#endif
+  int hwc_count;
+
+  hwc_ctrl();
+
+  void init_hwc(int count);
+
+  void reset_hwc();
+
+  void set_target_state(int hwc, int target_state);
+
+  unsigned int get_current_state(int hwc);
+
+  unsigned int get_cycle_count(int hwc);
+
+private:
+  using axi4lite_ctrl<T>::reg_base;
+
+public:
+  using axi4lite_ctrl<T>::read_reg;
+  using axi4lite_ctrl<T>::write_reg;
+  using axi4lite_ctrl<T>::axi4lite_ctrl;
+};
+
+// ================================================================================
+// AXIMM API
+// ================================================================================
+
+template <typename T>
+struct mm_buffer {
+  T *buffer;
+  unsigned int addr;
+  unsigned int size;
+  static int mm_id;
+  const int id;
+
+#ifdef SYSC
+  hls_bus_chn<T> buffer_chn;
+#endif
+
+  mm_buffer(unsigned int _addr, unsigned int _size);
+
+  T *get_buffer();
+
+  void sync_from_acc();
+
+  void sync_to_acc();
+};
+
+// template <typename T>
+// struct multi_mm_buffer {
+//   vector<mm_buffer<T>> *mm_bufs;
+//   unsigned int *addrs;
+//   unsigned int *sizes;
+//   int mm_buf_count;
+
+//   multi_mm_buffer(unsigned int _addr, unsigned int _size);
+
+//   mm_buffer<int> *get_buffer(int id);
+
+//   void sync_from_acc();
+
+//   void sync_to_acc();
+// };
 
 // ================================================================================
 // Stream DMA API
@@ -372,4 +489,4 @@ struct multi_dma {
 #include "axi_api_v5.tpp"
 #endif
 
-#endif // AXI_API_V4_H
+#endif // AXI_API_V5_H

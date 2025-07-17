@@ -104,14 +104,16 @@ struct _BDATA {
     tlast = _data.tlast;
   }
 
-  void pack(sc_uint<W / 4> a1, sc_uint<W / 4> a2, sc_uint<W / 4> a3, sc_uint<W / 4> a4) {
+  void pack(sc_uint<W / 4> a1, sc_uint<W / 4> a2, sc_uint<W / 4> a3,
+            sc_uint<W / 4> a4) {
     data.range(((W * 1 / 4) - 1), 0) = a1;
     data.range(((W * 2 / 4) - 1), (W * 1 / 4)) = a2;
     data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
     data.range(((W * 4 / 4) - 1), (W * 3 / 4)) = a4;
   }
 
-  void pack(sc_int<W / 4> a1, sc_int<W / 4> a2, sc_int<W / 4> a3, sc_int<W / 4> a4) {
+  void pack(sc_int<W / 4> a1, sc_int<W / 4> a2, sc_int<W / 4> a3,
+            sc_int<W / 4> a4) {
     data.range(((W * 1 / 4) - 1), 0) = a1;
     data.range(((W * 2 / 4) - 1), (W * 1 / 4)) = a2;
     data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
@@ -124,7 +126,6 @@ struct _BDATA {
   //   data.range(((W * 3 / 4) - 1), (W * 2 / 4)) = a3;
   //   data.range(((W * 4 / 4) - 1), (W * 3 / 4)) = a4;
   // }
-  
 };
 
 #ifndef __SYNTHESIS__
@@ -219,6 +220,36 @@ struct rm_data2 {
       // DWAIT(1);
     }
     return dout1.read();
+  }
+};
+
+SC_MODULE(AXI4LITE_CONTROL) {
+  sc_in<bool> clock;
+  sc_in<bool> reset;
+
+  bool start_bool = false;
+  sc_out<bool> start;
+
+  sc_in<bool> done;
+
+  void HandShake() {
+    while (1) {
+      while (!start_bool) wait();
+      start.write(true);
+
+      while (!done) wait();
+      start.write(false);
+      start_bool = false;
+      sc_pause();
+      while (done) wait();
+    }
+  };
+
+  SC_HAS_PROCESS(AXI4LITE_CONTROL);
+
+  AXI4LITE_CONTROL(sc_module_name name_) : sc_module(name_) {
+    SC_CTHREAD(HandShake, clock.pos());
+    reset_signal_is(reset, true);
   }
 };
 
