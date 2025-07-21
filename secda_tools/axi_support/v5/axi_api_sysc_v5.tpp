@@ -540,11 +540,8 @@ void multi_dma<B, T>::multi_dma_wait_recv() {
   while (loop) {
     loop = false;
     for (int i = 0; i < dma_count; i++) {
-      bool s = dmas[i].dmad->recv;
       if (dmas[i].dmad->recv) dmas[i].dma_wait_recv();
       loop = loop || dmas[i].dmad->recv;
-      bool e = dmas[i].dmad->recv;
-      int k = 0;
     }
   }
 }
