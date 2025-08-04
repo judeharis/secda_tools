@@ -26,6 +26,7 @@ cc_library(
         "axi4s_engine_generic.sc.h",
         "axi4s_engine_phy.sc.h",
         "phy.sc.h",
+        "hwc.sc.h"
         ],
     copts = common_copts,
     deps = [

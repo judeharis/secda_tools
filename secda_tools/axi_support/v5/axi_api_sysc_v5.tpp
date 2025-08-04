@@ -61,11 +61,21 @@ void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
   cout << "This call should not be used in simulation" << endl;
 }
 
+// ===============================================================================
+// AXI4Lite acc_ctrl
+// ===============================================================================
+
 template <typename T>
 acc_ctrl<T>::acc_ctrl() {
   reg_base = nullptr;
   string name("ACC_CONTROL");
   ctrl = new AXI4LITE_CONTROL(&name[0]);
+}
+
+template <typename T>
+void acc_ctrl<T>::init_sigs(int count) {
+  sigs = new ctrl_signals[count];
+  sig_count = count;
 }
 
 template <typename T>
@@ -82,46 +92,128 @@ void acc_ctrl<T>::wait_done() {
 }
 
 template <typename T>
-hwc_ctrl<T>::hwc_ctrl(){};
+bool acc_ctrl<T>::check_done() {
+  wait_done();
+  return true;
+}
+
+template <typename T>
+unsigned int acc_ctrl<T>::get_reg(int reg) {
+  if (reg < 0 || reg >= sig_count) {
+    cerr << "Getting Invalid Signal Address" << endl;
+    return 1;
+  }
+  return sigs[reg].sig.read();
+}
+
+template <typename T>
+void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
+  if (reg < 0 || reg >= sig_count) {
+    cerr << "Setting Invalid Signal Address" << endl;
+    return;
+  }
+  sigs[reg].sig.write(val);
+}
+
+template <typename T>
+void acc_ctrl<T>::print_reg_map(bool clear_console) {
+  // Clear the console (works on most UNIX terminals)
+  if (clear_console) std::cout << "\033[2J\033[1;1H";
+  cout << "================================================" << endl;
+  cout << "ACC Control Register Map" << endl;
+  for (int i = 0; i < sig_count; i++) {
+    cout << "Reg[" << (0x24 + i * 8) << "]: " << get_reg(i) << endl;
+  }
+  cout << "================================================" << endl;
+}
+
+// ================================================================================
+// AXI4Lite hwc_ctrl
+// ================================================================================
+
+template <typename T>
+hwc_ctrl<T>::hwc_ctrl() {
+  reg_base = nullptr;
+  string name("HWC_RESETTER");
+  hwc_resetter = new HWC_Resetter(&name[0]);
+};
 
 template <typename T>
 void hwc_ctrl<T>::init_hwc(int count) {
+  ctrl = new hwc_signals[count];
   hwc_count = count;
 }
 
 template <typename T>
 void hwc_ctrl<T>::reset_hwc() {
-  // write_reg(0x14, 1); // Reset HWC
-  // msync(reg_base, PAGE_SIZE, MS_SYNC);
-  // write_reg(0x14, 0); // Clear reset
+  hwc_resetter->hwc_reset_bool = true;
+  // sc_start(1, SC_NS);
+  sc_start();
 }
 
 template <typename T>
 void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
-  cout << "This call should not be used in simulation" << endl;
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+  }
+  ctrl[hwc].sts.write(target_state);
 }
 
 template <typename T>
 unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
-  return 0;
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+    return 1;
+  }
+  return ctrl[hwc].so.read();
 }
 
 template <typename T>
 unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
-  return 0;
+  return ctrl[hwc].co.read();
 }
 
+template <typename T>
+void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
+  // Clear the console (works on most UNIX terminals)
+  if (clear_console) std::cout << "\033[2J\033[1;1H";
+  cout << "================================================" << endl;
+  cout << "HWC Control Register Map" << endl;
+  for (int i = 0; i < hwc_count; i++) {
+    int curr_target_state = ctrl[i].sts.read();
+    cout << "HWC[" << (0x1C + (i * 0x18))
+         << "] | Current State: " << get_current_state(i)
+         << " | Cycle Count: " << get_cycle_count(i)
+         << " | Target State: " << curr_target_state << endl;
+  }
+  cout << "================================================" << endl;
+}
 // ================================================================================
 // AXIMM API
 // ================================================================================
 template <typename T>
 int mm_buffer<T>::mm_id = 0;
+// int mm_id = 0;
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
+    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
+                               std::to_string(_addr) + "_" + name)
+                                  .c_str(),
+                              0, _size - 1) {
+  size = _size;
+  addr = 0;
+  buffer = (T *)malloc(_size * sizeof(T));
+  // Initialize with zeros
+  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
+}
 
 template <typename T>
 mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
-    : id(mm_id++),
-      buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id)).c_str(), 0,
-                 _size - 1) {
+    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
+                               std::to_string(_addr))
+                                  .c_str(),
+                              0, _size - 1) {
   size = _size;
   addr = 0;
   buffer = (T *)malloc(_size * sizeof(T));

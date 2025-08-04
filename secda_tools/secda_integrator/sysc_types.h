@@ -1,7 +1,9 @@
 #ifndef SYSC_TYPES_H
 #define SYSC_TYPES_H
 
+#include "hwc.sc.h"
 #include "secda_hw_utils.sc.h"
+
 #include <iomanip>
 #include <iostream>
 #include <systemc.h>
@@ -226,11 +228,9 @@ struct rm_data2 {
 SC_MODULE(AXI4LITE_CONTROL) {
   sc_in<bool> clock;
   sc_in<bool> reset;
-
-  bool start_bool = false;
   sc_out<bool> start;
-
   sc_in<bool> done;
+  bool start_bool = false;
 
   void HandShake() {
     while (1) {
@@ -251,6 +251,44 @@ SC_MODULE(AXI4LITE_CONTROL) {
     SC_CTHREAD(HandShake, clock.pos());
     reset_signal_is(reset, true);
   }
+};
+
+SC_MODULE(HWC_Resetter) {
+  sc_in<bool> clock;
+  sc_in<bool> reset;
+  sc_out<bool> hwc_reset;
+  bool hwc_reset_bool = false;
+
+  void Reset() {
+    wait();
+    while (true) {
+      if (hwc_reset_bool) {
+        hwc_reset.write(true);
+        wait();
+        hwc_reset.write(false);
+        hwc_reset_bool = false;
+        sc_pause();
+      }
+      wait();
+    }
+  }
+
+  SC_HAS_PROCESS(HWC_Resetter);
+
+  HWC_Resetter(sc_module_name name_) : sc_module(name_) {
+    SC_CTHREAD(Reset, clock.pos());
+    reset_signal_is(reset, true);
+  }
+};
+
+struct hwc_signals {
+  sc_signal<unsigned int> sts;
+  sc_signal<unsigned int> co;
+  sc_signal<unsigned int> so;
+};
+
+struct ctrl_signals {
+  sc_signal<unsigned int> sig;
 };
 
 template <int W>
