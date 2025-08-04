@@ -11,6 +11,8 @@
 #include "ap_mem_if.h"
 #endif
 
+static unsigned int CTRL_SIG_Counter = 0;
+
 template <typename T, unsigned int W>
 struct sbram {
   T data[W];
@@ -37,11 +39,10 @@ struct sbram {
 
 #define PRAGMA(X) _Pragma(#X)
 
-#define SLV_Prag(signame)                                                     \
+#define SLV_Prag(signame)                                                      \
   PRAGMA(HLS resource core = AXI4LiteS metadata =                              \
              "-bus_bundle slv0" variable = signame)
 
-             
 #define CTRL_Prag(signame)                                                     \
   PRAGMA(HLS resource core = AXI4LiteS metadata =                              \
              "-bus_bundle ctrl" variable = signame)
@@ -74,11 +75,48 @@ struct sbram {
   dut->done(scs->sig_done);                                                    \
   dut->start(scs->sig_start);
 
+#define CTRL_Bind_Signal(signame)                                              \
+  acc->signame(ctrl->sigs[CTRL_SIG_Counter++].sig);
+
 #define CTRL_PragGroup CTRL_Prag(start) CTRL_Prag(done)
 
+// Define AXI4M bus port and sc_in<unsigned int> name##_addr;
 #define AXI4M_Bus_Port(type, name)                                             \
   AXI4M_bus_port<type> name##_port;                                            \
   sc_in<unsigned int> name##_addr;
 
 #define AXI4M_PragAddr(name) CTRL_Prag(name##_addr)
+
+#define Sig_Start(start_sig, done_sig)                                         \
+  start_sig.write(true);                                                       \
+  wait();                                                                      \
+  while (!done_sig.read()) wait();                                             \
+  start_sig.write(false);                                                      \
+  wait();
+
+#define Sig_Wait(start_sig)                                                    \
+  while (!start_sig.read()) wait();
+
+#define Sig_Done(start_sig, done_sig)                                          \
+  done_sig.write(true);                                                        \
+  wait();                                                                      \
+  while (start_sig.read()) wait();                                             \
+  done_sig.write(false);                                                       \
+  wait();
+
+// #define Sig_Start(start_sig, done_sig)                                         \
+//   start_sig.write(true);                                                       \
+//   while (!done_sig.read()) wait();                                             \
+//   start_sig.write(false);                                                      \
+//   DWAIT();
+
+// #define Sig_Wait(start_sig)                                                    \
+//   while (!start_sig.read()) wait();
+
+// #define Sig_Done(start_sig, done_sig)                                          \
+//   done_sig.write(true);                                                        \
+//   while (start_sig.read()) wait();                                             \
+//   done_sig.write(false);                                                       \
+//   DWAIT();
+
 #endif // SECDA_HW_UTILS_SC_H

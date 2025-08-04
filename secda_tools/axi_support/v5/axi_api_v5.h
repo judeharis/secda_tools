@@ -213,27 +213,40 @@ struct acc_ctrl : public axi4lite_ctrl<T> {
 
 #ifdef SYSC
   AXI4LITE_CONTROL *ctrl;
+  ctrl_signals *sigs;
 #endif
   bool start = false;
   bool done = false;
+  int sig_count;
 
   acc_ctrl();
+
+  void init_sigs(int count);
   void start_acc();
   void wait_done();
 
+  bool check_done();
+
+  unsigned int get_reg(int addr);
+  void set_reg(int addr, unsigned int val);
+
+  void print_reg_map(bool clear_console);
+
 private:
   using axi4lite_ctrl<T>::reg_base;
+  using axi4lite_ctrl<T>::write_reg;
 
 public:
   using axi4lite_ctrl<T>::read_reg;
-  using axi4lite_ctrl<T>::write_reg;
   using axi4lite_ctrl<T>::axi4lite_ctrl;
 };
 
 template <typename T>
-struct hwc_ctrl {
+struct hwc_ctrl : public axi4lite_ctrl<T> {
 #ifdef SYSC
-  AXI4LITE_CONTROL *ctrl;
+  HWC_Resetter *hwc_resetter;
+  hwc_signals *ctrl;
+  sc_signal<bool> reset;
 #endif
   int hwc_count;
 
@@ -248,6 +261,8 @@ struct hwc_ctrl {
   unsigned int get_current_state(int hwc);
 
   unsigned int get_cycle_count(int hwc);
+
+  void print_hwc_map(bool clear_console);
 
 private:
   using axi4lite_ctrl<T>::reg_base;
@@ -269,10 +284,13 @@ struct mm_buffer {
   unsigned int size;
   static int mm_id;
   const int id;
+  string name;
 
 #ifdef SYSC
   hls_bus_chn<T> buffer_chn;
 #endif
+
+  mm_buffer(unsigned int _addr, unsigned int _size, string name);
 
   mm_buffer(unsigned int _addr, unsigned int _size);
 
