@@ -21,11 +21,7 @@ cc_library(
     name = "secda_integrator",
     srcs = [
         "systemc_integrate.h",
-        "axi4mm_engine.sc.h",
-        "axi4s_engine.sc.h",
         "axi4s_engine_generic.sc.h",
-        "axi4s_engine_phy.sc.h",
-        "phy.sc.h",
         "hwc.sc.h"
         ],
     copts = common_copts,

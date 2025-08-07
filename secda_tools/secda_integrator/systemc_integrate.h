@@ -1,11 +1,9 @@
 
-// TODO Generalise this code so it is easy for all new accelerators
 #ifndef SYSTEMC_INTEGRATE
 #define SYSTEMC_INTEGRATE
 
 #include <systemc.h>
 #include <iostream>
-// #include "../ap_sysc/hls_bus_if.h"
 
 int sc_main(int argc, char* argv[]) { return 0; }
 

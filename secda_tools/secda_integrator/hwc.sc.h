@@ -1,9 +1,7 @@
 #ifndef HWC_H
 #define HWC_H
 
-#include <systemc.h>
-
-#define PRAGMA(X) _Pragma(#X)
+#include "secda_hw_utils.sc.h"
 
 static unsigned int HWC_Counter = 0;
 
@@ -67,6 +65,7 @@ static unsigned int HWC_Counter = 0;
 
 #endif // HWC_H
 
+/*
 // #define HWC_MAIN(name) \
 // 	void HW_MAIN() { \
 // 		wait(); \
@@ -81,3 +80,4 @@ static unsigned int HWC_Counter = 0;
 // 			} \
 // 		} \
 // 	}
+*/

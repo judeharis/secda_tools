@@ -3,7 +3,6 @@
 
 #ifdef SYSC
 #include "../../secda_integrator/axi4s_engine.sc.h"
-// #include "../secda_integrator/axi4s_engine_phy.sc.h"
 #endif
 
 #include <fcntl.h>

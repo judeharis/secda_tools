@@ -1,19 +1,26 @@
-#ifdef SYSC
+#ifndef SYSC
 
-// TODO Implement SystemC Signal Read/Write
 // ================================================================================
 // AXI4Lite API
 // ================================================================================
 
 template <typename T>
-acc_regmap<T>::acc_regmap(size_t base_addr, size_t length) {}
+acc_regmap<T>::acc_regmap(size_t base_addr, size_t length) {
+  acc_addr = getAccBaseAddress<int>(base_addr, length);
+}
 
 template <typename T>
-void acc_regmap<T>::writeAccReg(uint32_t offset, unsigned int val) {}
+void acc_regmap<T>::writeAccReg(uint32_t offset, unsigned int val) {
+  void *base_addr = (void *)acc_addr;
+  *((volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset)) =
+      val;
+}
 
 template <typename T>
 unsigned int acc_regmap<T>::readAccReg(uint32_t offset) {
-  return 0;
+  void *base_addr = (void *)acc_addr;
+  return *(
+      (volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset));
 }
 
 // TODO: parse JSON file to load offset map for control and status registers
@@ -24,22 +31,57 @@ void acc_regmap<T>::parseOffsetJSON() {}
 // register
 template <typename T>
 uint32_t acc_regmap<T>::findRegOffset(string reg_name) {
-  return 0;
+  uint32_t offset = 0;
+  return offset;
 }
 
 template <typename T>
-void acc_regmap<T>::writeToControlReg(string reg_name, unsigned int val) {}
+void acc_regmap<T>::writeToControlReg(string reg_name, unsigned int val) {
+  writeAccReg(findRegOffset(reg_name), val);
+}
 
 template <typename T>
 unsigned int acc_regmap<T>::readToControlReg(string reg_name) {
-  return 0;
+  return readAccReg(findRegOffset(reg_name));
 }
 
 // ================================================================================
 // Memory Map API
 // ================================================================================
 
-// Make this into a struct based API (for SystemC)
+// Make this into a struct based API
+
+// ================================================================================
+// AXIMM API
+// ================================================================================
+template <typename T>
+int mm_buffer<T>::mm_id = 0;
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
+    : id(mm_id++), name(name) {
+  size = _size;
+  addr = _addr / 4; // Convert to 32-bit words
+  buffer = mm_alloc_rw<T>(_addr, _size * sizeof(T));
+}
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size) : id(mm_id++) {
+  size = _size;
+  addr = _addr / 4; // Convert to 32-bit words
+  buffer = mm_alloc_rw<T>(_addr, _size * sizeof(T));
+}
+
+template <typename T>
+T *mm_buffer<T>::get_buffer() {
+  return buffer;
+}
+template <typename T>
+void mm_buffer<T>::sync_from_acc() {}
+
+template <typename T>
+void mm_buffer<T>::sync_to_acc() {}
+
 // ================================================================================
 // ACC Control API
 // ================================================================================
@@ -48,17 +90,22 @@ template <typename T>
 axi4lite_ctrl<T>::axi4lite_ctrl() {}
 
 template <typename T>
-axi4lite_ctrl<T>::axi4lite_ctrl(int *base_addr) {}
+axi4lite_ctrl<T>::axi4lite_ctrl(int *base_addr) {
+  reg_base = base_addr;
+}
 
 template <typename T>
 unsigned int axi4lite_ctrl<T>::read_reg(unsigned int offset) {
-  cout << "This call should not be used in simulation" << endl;
-  return 0;
+  void *base_addr = (void *)reg_base;
+  return *(
+      (volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset));
 }
 
 template <typename T>
 void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
-  cout << "This call should not be used in simulation" << endl;
+  void *base_addr = (void *)reg_base;
+  *((volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset)) =
+      val;
 }
 
 // ===============================================================================
@@ -66,52 +113,50 @@ void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
 // ===============================================================================
 
 template <typename T>
-acc_ctrl<T>::acc_ctrl() {
-  reg_base = nullptr;
-  string name("ACC_CONTROL");
-  ctrl = new ACC_CONTROL(&name[0]);
-  ctrl_sigs = new ctrl_signals();
-  ctrl->start(ctrl_sigs->sig_start);
-  ctrl->done(ctrl_sigs->sig_done);
-  reg_sigs = nullptr;
-  sig_count = 0;
-}
+acc_ctrl<T>::acc_ctrl() {}
 
 template <typename T>
 void acc_ctrl<T>::init_sigs(int count) {
-  reg_sigs = new reg_signals[count];
-  for (int i = 0; i < count; i++) {
-    reg_sigs[i].sig.write(0);
-  }
   sig_count = count;
 }
 
 template <typename T>
 void acc_ctrl<T>::start_acc() {
-  start = true;
-  ctrl->start_bool = start;
+  write_reg(0x14, 1);
 }
 
 template <typename T>
 void acc_ctrl<T>::wait_done() {
-  sc_start();
-  start = false;
-  done = ctrl->done.read();
+  while (!read_reg(0x1C)) {
+    msync(reg_base, PAGE_SIZE, MS_SYNC);
+  }
+  write_reg(0x14, 0);
+  while (read_reg(0x1C)) {
+    msync(reg_base, PAGE_SIZE, MS_SYNC);
+  }
 }
 
 template <typename T>
 bool acc_ctrl<T>::check_done() {
-  wait_done();
-  return true;
+  if (read_reg(0x1C)) {
+    write_reg(0x14, 0);
+    while (read_reg(0x1C)) {
+      msync(reg_base, PAGE_SIZE, MS_SYNC);
+    }
+    return true;
+  }
+  return false;
 }
 
 template <typename T>
 unsigned int acc_ctrl<T>::get_reg(int reg) {
   if (reg < 0 || reg >= sig_count) {
     cerr << "Getting Invalid Signal Address" << endl;
-    return 1;
+    return 0;
   }
-  return reg_sigs[reg].sig.read();
+  msync(reg_base, PAGE_SIZE, MS_SYNC);
+  unsigned int val = read_reg(0x24 + reg * 8);
+  return val;
 }
 
 template <typename T>
@@ -120,7 +165,9 @@ void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
     cerr << "Setting Invalid Signal Address" << endl;
     return;
   }
-  reg_sigs[reg].sig.write(val);
+  cout << "Setting reg[" << (0x24 + reg * 8) << "] = " << val << endl;
+  write_reg(0x24 + reg * 8, val);
+  msync(reg_base, PAGE_SIZE, MS_SYNC);
 }
 
 template <typename T>
@@ -140,45 +187,45 @@ void acc_ctrl<T>::print_reg_map(bool clear_console) {
 // ================================================================================
 
 template <typename T>
-hwc_ctrl<T>::hwc_ctrl() {
-  reg_base = nullptr;
-  string name("HWC_RESETTER");
-  hwc_resetter = new HWC_RESETTER(&name[0]);
-};
+hwc_ctrl<T>::hwc_ctrl(){};
 
 template <typename T>
 void hwc_ctrl<T>::init_hwc(int count) {
-  ctrl = new hwc_signals[count];
   hwc_count = count;
 }
 
 template <typename T>
 void hwc_ctrl<T>::reset_hwc() {
-  hwc_resetter->hwc_reset_bool = true;
-  // sc_start(1, SC_NS);
-  sc_start();
+  write_reg(0x14, 1); // Reset HWC
+  msync(reg_base, PAGE_SIZE, MS_SYNC);
+  write_reg(0x14, 0); // Clear reset
 }
 
 template <typename T>
 void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
   if (hwc < 0 || hwc >= hwc_count) {
     cerr << "HWC index out of bounds: " << hwc << endl;
+    return;
   }
-  ctrl[hwc].sts.write(target_state);
+  write_reg(0x1C + (hwc * 0x18), target_state);
 }
 
 template <typename T>
 unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
   if (hwc < 0 || hwc >= hwc_count) {
     cerr << "HWC index out of bounds: " << hwc << endl;
-    return 1;
+    return -1;
   }
-  return ctrl[hwc].so.read();
+  return read_reg(0x2C + (hwc * 0x18));
 }
 
 template <typename T>
 unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
-  return ctrl[hwc].co.read();
+  if (hwc < 0 || hwc >= hwc_count) {
+    cerr << "HWC index out of bounds: " << hwc << endl;
+    return -1;
+  }
+  return read_reg(0x24 + (hwc * 0x18));
 }
 
 template <typename T>
@@ -188,7 +235,7 @@ void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
   cout << "================================================" << endl;
   cout << "HWC Control Register Map" << endl;
   for (int i = 0; i < hwc_count; i++) {
-    int curr_target_state = ctrl[i].sts.read();
+    int curr_target_state = read_reg(0x1C + (i * 0x18));
     cout << "HWC[" << (0x1C + (i * 0x18))
          << "] | Current State: " << get_current_state(i)
          << " | Cycle Count: " << get_cycle_count(i)
@@ -196,173 +243,140 @@ void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
   }
   cout << "================================================" << endl;
 }
-// ================================================================================
-// AXIMM API
-// ================================================================================
-template <typename T>
-int mm_buffer<T>::mm_id = 0;
-// int mm_id = 0;
-
-template <typename T>
-mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
-    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
-                               std::to_string(_addr) + "_" + name)
-                                  .c_str(),
-                              0, _size - 1) {
-  size = _size;
-  addr = 0;
-  buffer = (T *)malloc(_size * sizeof(T));
-  // Initialize with zeros
-  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
-}
-
-template <typename T>
-mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
-    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
-                               std::to_string(_addr))
-                                  .c_str(),
-                              0, _size - 1) {
-  size = _size;
-  addr = 0;
-  buffer = (T *)malloc(_size * sizeof(T));
-  // Initialize with zeros
-  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
-}
-
-template <typename T>
-T *mm_buffer<T>::get_buffer() {
-  return buffer;
-}
-
-template <typename T>
-void mm_buffer<T>::sync_from_acc() {
-  buffer_chn.burst_read(0, size, (T *)&buffer[0]);
-}
-
-template <typename T>
-void mm_buffer<T>::sync_to_acc() {
-  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
-}
 
 // ================================================================================
 // Stream DMA API
 // ================================================================================
-
 template <int B, int T>
 int stream_dma<B, T>::s_id = 0;
 // int sr_id = 0;
 
 template <int B, int T>
 stream_dma<B, T>::stream_dma(unsigned int _dma_addr, unsigned int _input,
-                             unsigned int _r_paddr, unsigned int _input_size,
-                             unsigned int _output, unsigned int _w_paddr,
+                             unsigned int _input_size, unsigned int _output,
                              unsigned int _output_size)
     : id(s_id++) {
-  string name("SDMA" + to_string(id));
-  dmad = new AXIS_ENGINE<B, AXI_TYPE>(&name[0]);
-
-  dmad->id = id;
-  dmad->input_len = 0;
-  dmad->input_offset = 0;
-  dmad->output_len = 0;
-  dmad->output_offset = 0;
-  dmad->r_paddr = _r_paddr;
-  dmad->w_paddr = _w_paddr;
   dma_init(_dma_addr, _input, _input_size, _output, _output_size);
 }
 
 template <int B, int T>
-stream_dma<B, T>::stream_dma() : id(s_id++) {
-  string name("MSDMA" + to_string(id));
-  dmad = new AXIS_ENGINE<B, AXI_TYPE>(&name[0]);
-  dmad->input_len = 0;
-  dmad->input_offset = 0;
-  dmad->output_len = 0;
-  dmad->output_offset = 0;
-  dmad->id = id;
-};
+stream_dma<B, T>::stream_dma() : id(s_id++){};
 
 template <int B, int T>
 stream_dma<B, T>::~stream_dma() {
-  print_times();
-  dma_free();
-  delete dmad;
+  // dma_free();
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
                                 unsigned int _input_size, unsigned int _output,
                                 unsigned int _output_size) {
-  input = (int *)malloc(_input_size * sizeof(int));
-  output = (int *)malloc(_output_size * sizeof(int));
+  dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
 
-  // Initialize with zeros
-  for (int64_t i = 0; i < _input_size; i++) {
-    *(input + i) = 0;
-  }
-
-  for (int64_t i = 0; i < _output_size; i++) {
-    *(output + i) = 0;
-  }
+  // #ifdef KRIA
+  cerr << "KRIA ALLOC" << endl;
+  input = mm_alloc_rw<int>(_input, _input_size);
+  output = mm_alloc_r<int>(_output, _output_size);
   input_size = _input_size;
   output_size = _output_size;
-  dmad->DMA_input_buffer = (int *)input;
-  dmad->DMA_output_buffer = (int *)output;
-  dmad->r_paddr = _input;
-  dmad->w_paddr = _output;
+  input_addr = _input;
+  output_addr = _output;
+  // #else
+  //   cout << "CMA ALLOC" << endl;
+  //   input = cmap_alloc_rw<int>(_input_size);
+  //   output = cmap_alloc_rw<int>(_output_size);
+  //   int *input_buf = reinterpret_cast<int *>(input);
+  //   int *output_buf = reinterpret_cast<int *>(output);
+  //   input_addr = cma_get_phy_addr(input_buf);
+  //   output_addr = cma_get_phy_addr(output_buf);
+  // #endif
+
+  initDMA(input_addr, output_addr);
+  cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
+       << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
+       << " size: " << _output_size << endl;
 }
 
 template <int B, int T>
-void stream_dma<B, T>::writeMappedReg(uint32_t offset, unsigned int val) {}
+void stream_dma<B, T>::writeMappedReg(uint32_t offset, unsigned int val) {
+  void *base_addr = (void *)dma_addr;
+  *((volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset)) =
+      val;
+}
 
 template <int B, int T>
 unsigned int stream_dma<B, T>::readMappedReg(uint32_t offset) {
-  return 0;
+  void *base_addr = (void *)dma_addr;
+  return *(
+      (volatile unsigned int *)(reinterpret_cast<char *>(base_addr) + offset));
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_mm2s_sync() {
-#ifndef DISABLE_SIM
-  sc_start();
-#endif
+  msync(dma_addr, PAGE_SIZE, MS_SYNC);
+  unsigned int mm2s_status = readMappedReg(MM2S_STATUS_REGISTER);
+  while (!(mm2s_status & 1 << 12) || !(mm2s_status & 1 << 1)) {
+    msync(dma_addr, PAGE_SIZE, MS_SYNC);
+    mm2s_status = readMappedReg(MM2S_STATUS_REGISTER);
+  }
 }
+
 template <int B, int T>
 void stream_dma<B, T>::dma_s2mm_sync() {
-#ifndef DISABLE_SIM
-  sc_start();
-#endif
+  msync(dma_addr, PAGE_SIZE, MS_SYNC);
+  unsigned int s2mm_status = readMappedReg(S2MM_STATUS_REGISTER);
+  while (!(s2mm_status & 1 << 12) || !(s2mm_status & 1 << 1)) {
+    msync(dma_addr, PAGE_SIZE, MS_SYNC);
+    s2mm_status = readMappedReg(S2MM_STATUS_REGISTER);
+  }
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_change_start(int offset) {
-  dmad->DMA_input_buffer = input;
-  dmad->input_offset = offset / 4;
+  writeMappedReg(MM2S_START_ADDRESS, input_addr + offset);
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_change_start(unsigned int addr, int offset) {
-  dmad->DMA_input_buffer = input;
-  dmad->input_offset = offset / 4;
+  writeMappedReg(MM2S_START_ADDRESS, addr + offset);
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_change_end(int offset) {
-  dmad->output_offset = offset / 4;
+  writeMappedReg(S2MM_DESTINATION_ADDRESS, output_addr + offset);
 }
 
 template <int B, int T>
-void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {}
+void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {
+  writeMappedReg(S2MM_CONTROL_REGISTER, 4);
+  writeMappedReg(MM2S_CONTROL_REGISTER, 4);
+  writeMappedReg(S2MM_CONTROL_REGISTER, 0);
+  writeMappedReg(MM2S_CONTROL_REGISTER, 0);
+  writeMappedReg(S2MM_DESTINATION_ADDRESS, dst);
+  writeMappedReg(MM2S_START_ADDRESS, src);
+  writeMappedReg(S2MM_CONTROL_REGISTER, 0xf001);
+  writeMappedReg(MM2S_CONTROL_REGISTER, 0xf001);
+}
 
 template <int B, int T>
 void stream_dma<B, T>::dma_free() {
-  free(input);
-  free(output);
+  cout << "DMA: " << id << " freed " << endl;
+  print_times();
+  cma_free(input);
+  cma_free(output);
+  cma_munmap(dma_addr, PAGE_SIZE);
+  // munlockall();
 }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_inbuffer() {
   return input;
 }
+
+// template <int B, int T>
+// vector<cma_buffer> stream_dma<B, T>::dma_get_inbuffers() {
+//   return input_bufs;
+// }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_outbuffer() {
@@ -371,46 +385,59 @@ int *stream_dma<B, T>::dma_get_outbuffer() {
 
 template <int B, int T>
 void stream_dma<B, T>::dma_start_send(int length) {
-  dmad->input_len = length * (B / 32);
-  dmad->send = true;
+#ifndef DISABLE_DMA
+  prf_start_x(send_start);
 #ifdef ACC_PROFILE
   data_transfered += length * (B / 8);
   data_send_count++;
+#endif
+  msync(input, input_size, MS_SYNC | MS_INVALIDATE);
+  writeMappedReg(MM2S_LENGTH, length * (B / 8));
 #endif
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_wait_send() {
-  prf_start(0);
-  if (dmad->send) dma_mm2s_sync();
-  prf_end(0, send_wait);
+#ifndef DISABLE_DMA
+  dma_mm2s_sync();
+  prf_end_x(0, send_start, send_wait);
+#endif
 }
 
 template <int B, int T>
 int stream_dma<B, T>::dma_check_send() {
-  return 0;
+  unsigned int mm2s_status = readMappedReg(MM2S_STATUS_REGISTER);
+  bool done = !((!(mm2s_status & 1 << 12)) || (!(mm2s_status & 1 << 1)));
+  return done ? 0 : -1;
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_start_recv(int length) {
-  dmad->output_len = length * (B / 32);
-  dmad->recv = true;
+#ifndef DISABLE_DMA
+  writeMappedReg(S2MM_LENGTH, length * (B / 8));
+#endif
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_wait_recv() {
-  prf_start(0);
-  if (dmad->recv) dma_s2mm_sync();
-  prf_end(0, recv_wait);
+#ifndef DISABLE_DMA
+  // prf_start(0);
+  dma_s2mm_sync();
+  msync(output, output_size, MS_SYNC);
+  // prf_end(0, recv_wait);
+  prf_end_x(1, send_start, recv_wait);
 #ifdef ACC_PROFILE
-  data_transfered_recv += dmad->output_len * (B / 8);
+  data_transfered_recv += readMappedReg(S2MM_LENGTH);
   data_recv_count++;
+#endif
 #endif
 }
 
 template <int B, int T>
 int stream_dma<B, T>::dma_check_recv() {
-  return 0;
+  unsigned int s2mm_status = readMappedReg(S2MM_STATUS_REGISTER);
+  bool done = !((!(s2mm_status & 1 << 12)) || (!(s2mm_status & 1 << 1)));
+  return done ? 0 : -1;
 }
 
 template <int B, int T>
@@ -441,23 +468,44 @@ void stream_dma<B, T>::print_times() {
   int data_per_recv = data_transfered_recv / data_recv_count;
   cerr << "Data per Send: " << data_per_send << " bytes" << endl;
   cerr << "Data per Recv: " << data_per_recv << " bytes" << endl;
-  // dmad->pattern_csv();
   cerr << "================================================" << endl;
+  std::ofstream file("dma" + std::to_string(id) + ".csv", std::ios::out);
+  // csv file header
+  file << "Data Transfered,Data Transfered Recv,Send Time,Recv Time,Send "
+          "Speed,Recv Speed,Data Send Count,Data Recv Count,Data per Send,Data "
+          "per Recv"
+       << std::endl;
+  file << data_transfered << "," << data_transfered_recv << "," << sendtime
+       << "," << recvtime << "," << (data_transfered_MB / sendtime) << ","
+       << (data_recv_MB / recvtime) << "," << data_send_count << ","
+       << data_recv_count << "," << data_per_send << "," << data_per_recv
+       << std::endl;
+
 #endif
 }
 
+// ================================================================================
+
 template <int B, int T>
 int stream_dma<B, T>::dma_alloc_input_buffer(int buffer_size) {
-  int size = buffer_size / 4;
-
-  void *new_input = malloc(buffer_size * sizeof(int));
-  if (new_input == NULL) {
-    cerr << "Failed to allocate input buffer" << endl;
+  void *input = cmap_alloc_rw<void *>(buffer_size);
+  unsigned int phy_addr = cma_get_phy_addr(input);
+  if (input == NULL) {
+    cerr << "Failed to allocate DMA Buffer" << endl;
     return -1;
   }
+  // std::stringstream ss;
+  // ss << std::hex << phy_addr;
+  // std::string res();
+  // cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
+  //  << " at address " << ss.str() << endl;
+
+  cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
+       << " at address " << HEX(phy_addr) << endl;
+
   input_bufs_id.push_back(cma_id);
-  input_bufs_ptrs.push_back(new_input);
-  input_bufs_phy_addr.push_back(0);
+  input_bufs_ptrs.push_back(input);
+  input_bufs_phy_addr.push_back(phy_addr);
   input_bufs_size.push_back(buffer_size);
   input_bufs_allocated_size += buffer_size;
   return cma_id++;
@@ -467,7 +515,7 @@ template <int B, int T>
 void stream_dma<B, T>::dma_dealloc_input_buffer(int id) {
   for (int i = 0; i < input_bufs_id.size(); i++) {
     if (input_bufs_id[i] == id) {
-      free(input_bufs_ptrs[i]);
+      cma_free(input_bufs_ptrs[i]);
       input_bufs_allocated_size -= input_bufs_size[i];
       input_bufs_id.erase(input_bufs_id.begin() + i);
       input_bufs_ptrs.erase(input_bufs_ptrs.begin() + i);
@@ -493,38 +541,27 @@ template <int B, int T>
 void stream_dma<B, T>::dma_change_input_buffer(int id, int offset) {
   for (int i = 0; i < input_bufs_id.size(); i++) {
     if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = (int *)input_bufs_ptrs[i];
-      break;
+      // unsigned phy_addr = input_bufs_phy_addr[i];
+      unsigned phy_addr = cma_get_phy_addr(input_bufs_ptrs[i]);
+      dma_change_start(phy_addr, offset);
     }
   }
-  dmad->input_offset = offset / 4;
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_default_input_buffer() {
-  dmad->DMA_input_buffer = input;
+  dma_change_start(0);
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_send_buffer(int id, int length, int offset) {
-  dmad->input_len = length * (B / 32);
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = input_bufs_ptrs[i];
-      dmad->input_offset = offset / 4;
-      break;
-    }
-  }
-  dmad->send = true;
-#ifdef ACC_PROFILE
-  data_transfered += length * (B / 8);
-  data_send_count++;
-#endif
+  dma_change_input_buffer(id, offset);
+  dma_start_send(length);
 }
 
 template <int B, int T>
 unsigned int stream_dma<B, T>::dma_pages_available() {
-  return 0;
+  return cma_pages_available();
 }
 
 // ================================================================================
@@ -569,15 +606,14 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 
 template <int B, int T>
 multi_dma<B, T>::~multi_dma() {
-  print_times();
-}
-
-template <int B, int T>
-void multi_dma<B, T>::multi_free_dmas() {
   for (int i = 0; i < dma_count; i++) {
     dmas[i].dma_free();
   }
+  delete[] dmas;
 }
+
+template <int B, int T>
+void multi_dma<B, T>::multi_free_dmas() {}
 
 template <int B, int T>
 void multi_dma<B, T>::multi_dma_change_start(int offset) {
@@ -608,19 +644,15 @@ void multi_dma<B, T>::multi_dma_start_send(int length) {
 
 template <int B, int T>
 void multi_dma<B, T>::multi_dma_wait_send() {
-  bool loop = true;
-  while (loop) {
-    loop = false;
-    for (int i = 0; i < dma_count; i++) {
-      if (dmas[i].dmad->send) dmas[i].dma_wait_send();
-      loop = loop || dmas[i].dmad->send;
-    }
-  }
+  for (int i = 0; i < dma_count; i++) dmas[i].dma_wait_send();
 }
 
 template <int B, int T>
 int multi_dma<B, T>::multi_dma_check_send() {
-  return 0;
+  bool done = true;
+  for (int i = 0; i < dma_count; i++)
+    done = done && (dmas[i].dma_check_send() == 0);
+  return done ? 0 : -1;
 }
 
 template <int B, int T>
@@ -636,24 +668,23 @@ void multi_dma<B, T>::multi_dma_start_recv() {
 
 template <int B, int T>
 void multi_dma<B, T>::multi_dma_wait_recv() {
-  bool loop = true;
-  while (loop) {
-    loop = false;
-    for (int i = 0; i < dma_count; i++) {
-      if (dmas[i].dmad->recv) dmas[i].dma_wait_recv();
-      loop = loop || dmas[i].dmad->recv;
-    }
-  }
+  for (int i = 0; i < dma_count; i++) dmas[i].dma_wait_recv();
 }
 
 template <int B, int T>
 void multi_dma<B, T>::multi_dma_wait_recv_4() {
-  multi_dma_wait_recv();
+  dmas[0].dma_wait_recv();
+  dmas[1].dma_wait_recv();
+  dmas[2].dma_wait_recv();
+  dmas[3].dma_wait_recv();
 }
 
 template <int B, int T>
 int multi_dma<B, T>::multi_dma_check_recv() {
-  return 0;
+  bool done = true;
+  for (int i = 0; i < dma_count; i++)
+    done = done && (dmas[i].dma_check_recv() == 0);
+  return done ? 0 : -1;
 }
 
 template <int B, int T>
@@ -663,83 +694,4 @@ void multi_dma<B, T>::print_times() {
   }
 }
 
-#endif // SYSC
-
-// bool isNBitSignExtended(uint32_t data, const uint32_t &N) {
-//   int32_t shifted = static_cast<int32_t>(data << (32 - N)) >> (32 - N);
-//   uint32_t signed_data = static_cast<uint32_t>(shifted);
-//   return data == signed_data;
-// }
-
-// uint32_t compress(uint32_t data) {
-//   // // zero block
-//   // if (data == 0) {
-//   //   return zero_block_prefix;
-//   // }
-
-//   // Zero word
-//   if ((data & 0xFFFFFFFF) == 0) {
-//     return ZERO_WORD_PREFIX;
-//   }
-
-//   // Word with repeated bytes
-//   if ((data & 0xFF) == ((data >> 8) & 0xFF) &&
-//       (data & 0xFF) == ((data >> 16) & 0xFF) &&
-//       (data & 0xFF) == ((data >> 24) & 0xFF)) {
-//     return REPEATED_BYTE_PREFIX | ((data & 0xFF) << N_PREFIX_BITS);
-//   }
-
-//   // 4-bit sign-extended
-//   if (isNBitSignExtended(data, 4)) {
-//     uint32_t tmp = data & 0xF;
-//     uint32_t tmp2 = tmp << N_PREFIX_BITS;
-//     uint32_t tmp3 = SIGN_EXTENDED_4BIT_PREFIX | tmp2;
-//     return SIGN_EXTENDED_4BIT_PREFIX | ((data & 0xF) << N_PREFIX_BITS);
-//   }
-
-//   // One byte sign-extended
-//   if (isNBitSignExtended(data, 8)) {
-//     return ONE_BYTE_SIGN_EXTENDED_PREFIX | ((data & 0xFF) << N_PREFIX_BITS);
-//   }
-
-//   // Halfword sign-extended
-//   if (isNBitSignExtended(data, 16)) {
-//     return HALFWORD_SIGN_EXTENDED_PREFIX | ((data & 0xFFFF) <<
-//     N_PREFIX_BITS);
-//   }
-
-//   // Halfword padded with zero
-//   if ((data & 0xFFFF) == 0) {
-//     return HALFWORD_PADDED_ZERO_PREFIX | ((data >> 16) << N_PREFIX_BITS);
-//   }
-
-//   // Two halfwords, each a byte sign-extended
-//   uint32_t upper = (data >> 16);
-//   uint32_t lower = (data & 0x00FF);
-//   if (isNBitSignExtended(upper, 8) && isNBitSignExtended(lower, 8)) {
-//     return TWO_HALFWORDS_BYTE_SIGN_EXTENDED_PREFIX |
-//            (((upper << 8) | ((lower))) << N_PREFIX_BITS);
-//   }
-
-//   // Uncompressed
-//   return data;
-// }
-
-/// Prefix | Pattern# | Encoded Pattern            | Original Data | Compressed
-/// Data | Total Data Size (data + metadata)
-/// -------|----------|----------------------------|---------------|-----------------|-----------------------------------
-/// ---    | 1        | Zero block                 | Z512          | - |  0 + 3
-/// bits 001    | 2        | Zero word                  | Z32           | - +M3
-/// |  0 + 3 bits 010    | 3        | Word with repeated bytes   | N8N8N8N8 | N8
-/// +M3        |  8 + 3 bits 011    | 4        | 4-bit sign-extended        |
-/// X29N3         | N4   +M3        |  4 + 3 bits 100    | 5        | One byte
-/// sign-extended     | X25N7         | N8   +M3        |  8 + 3 bits 101    | 6
-/// | Halfword sign-extended     | X17N15        | N16  +M3        | 16 + 3 bits
-/// 110    | 7        | Halfword padded with zero  | N16Z16        | N16  +M3 |
-/// 16 + 3 bits 111    | 8        | Two halfw., each sign-ext. | X8N8X8N8      |
-/// N8N8 +M3        | 16 + 3 bits
-/// ---    | 9        | Uncompressed               | N32           | N32  +M3 |
-/// 32 + 0 bits
-
-// Z16N16
-// N8X8N8X8
+#endif
