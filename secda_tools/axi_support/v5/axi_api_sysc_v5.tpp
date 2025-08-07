@@ -69,12 +69,20 @@ template <typename T>
 acc_ctrl<T>::acc_ctrl() {
   reg_base = nullptr;
   string name("ACC_CONTROL");
-  ctrl = new AXI4LITE_CONTROL(&name[0]);
+  ctrl = new ACC_CONTROL(&name[0]);
+  ctrl_sigs = new ctrl_signals();
+  ctrl->start(ctrl_sigs->sig_start);
+  ctrl->done(ctrl_sigs->sig_done);
+  reg_sigs = nullptr;
+  sig_count = 0;
 }
 
 template <typename T>
 void acc_ctrl<T>::init_sigs(int count) {
-  sigs = new ctrl_signals[count];
+  reg_sigs = new reg_signals[count];
+  for (int i = 0; i < count; i++) {
+    reg_sigs[i].sig.write(0);
+  }
   sig_count = count;
 }
 
@@ -103,7 +111,7 @@ unsigned int acc_ctrl<T>::get_reg(int reg) {
     cerr << "Getting Invalid Signal Address" << endl;
     return 1;
   }
-  return sigs[reg].sig.read();
+  return reg_sigs[reg].sig.read();
 }
 
 template <typename T>
@@ -112,7 +120,7 @@ void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
     cerr << "Setting Invalid Signal Address" << endl;
     return;
   }
-  sigs[reg].sig.write(val);
+  reg_sigs[reg].sig.write(val);
 }
 
 template <typename T>
@@ -135,7 +143,7 @@ template <typename T>
 hwc_ctrl<T>::hwc_ctrl() {
   reg_base = nullptr;
   string name("HWC_RESETTER");
-  hwc_resetter = new HWC_Resetter(&name[0]);
+  hwc_resetter = new HWC_RESETTER(&name[0]);
 };
 
 template <typename T>

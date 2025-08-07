@@ -212,9 +212,11 @@ template <typename T>
 struct acc_ctrl : public axi4lite_ctrl<T> {
 
 #ifdef SYSC
-  AXI4LITE_CONTROL *ctrl;
-  ctrl_signals *sigs;
+  ACC_CONTROL *ctrl;
+  ctrl_signals *ctrl_sigs;
+  reg_signals *reg_sigs;
 #endif
+
   bool start = false;
   bool done = false;
   int sig_count;
@@ -224,7 +226,6 @@ struct acc_ctrl : public axi4lite_ctrl<T> {
   void init_sigs(int count);
   void start_acc();
   void wait_done();
-
   bool check_done();
 
   unsigned int get_reg(int addr);
@@ -244,7 +245,7 @@ public:
 template <typename T>
 struct hwc_ctrl : public axi4lite_ctrl<T> {
 #ifdef SYSC
-  HWC_Resetter *hwc_resetter;
+  HWC_RESETTER *hwc_resetter;
   hwc_signals *ctrl;
   sc_signal<bool> reset;
 #endif
