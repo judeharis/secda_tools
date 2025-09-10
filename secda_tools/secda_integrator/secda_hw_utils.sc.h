@@ -42,6 +42,11 @@
 // ================================================================
 static unsigned int CTRL_SIG_Counter = 0;
 
+
+#define SLV_Prag(signame)                                                   \
+  PRAGMA(HLS resource core = AXI4LiteS metadata =                              \
+             "-bus_bundle slv0" variable = signame)
+
 #define CTRL_Prag(signame)                                                     \
   PRAGMA(HLS resource core = AXI4LiteS metadata =                              \
              "-bus_bundle ctrl" variable = signame)
@@ -236,6 +241,8 @@ SC_MODULE(HWC_RESETTER) {
 // Simulation API Structs
 // ================================================================
 
+#ifndef __SYNTHESIS__
+
 struct hwc_signals {
   sc_signal<unsigned int> sts;
   sc_signal<unsigned int> co;
@@ -266,6 +273,7 @@ struct clock_reset {
   sc_signal<bool> sig_reset;
   clock_reset() : clk_clock("ClkClock") { sig_reset.write(false); }
 };
+#endif
 
 // ================================================================
 // Simulation Macros
