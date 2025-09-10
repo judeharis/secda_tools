@@ -108,6 +108,7 @@ cc_library(
     hdrs = select({
         "//:sysc": ["v5/axi_api_sysc_v5.tpp"],
         "//:fpga": ["v5/axi_api_v5.tpp"],
+        "//:fpga_arm64": ["v5/axi_api_v5.tpp"],
         "//conditions:default": [],
     }),
     copts = common_copts + ["-Lhome/jude/Workspace/secda_tools/secda_tools/axi_support/"],

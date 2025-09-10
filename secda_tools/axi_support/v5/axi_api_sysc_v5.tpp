@@ -227,6 +227,7 @@ mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
   buffer = (T *)malloc(_size * sizeof(T));
   // Initialize with zeros
   for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
+  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
 }
 
 template <typename T>
