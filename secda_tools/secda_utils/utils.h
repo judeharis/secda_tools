@@ -87,6 +87,15 @@ struct int32_params {
   }
 };
 
+void splitfinder(int* sizelist, int split, int num){
+    int rem = num % split;
+    int divs = num / split;
+    for (int i = 0; i < split; i++) {
+        sizelist[i] = divs;
+        if (i < rem) sizelist[i]++;
+    }
+}
+
 int roundUp(int numToRound, int multiple) {
   if (multiple == 0) return numToRound;
   int remainder = numToRound % multiple;

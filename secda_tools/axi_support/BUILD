@@ -125,3 +125,48 @@ cc_library(
         "//conditions:default": ["//secda_tools/axi_support:libxlnk_cma"],
     }),
 )
+
+cc_library(
+    name = "axi_supportv6",
+    srcs = [
+        "libxlnk_cma.h",
+        "v6/axi_api.h",
+        "v6/control_modules.h",
+        "v6/mm_buffer.h",
+        "v6/stream_dma.h",
+    ],
+    hdrs = select({
+        "//:sysc": [
+            "v6/axi_api_sysc.tpp",
+            "v6/control_modules_sysc.tpp",
+            "v6/mm_buffer_sysc.tpp",
+            "v6/stream_dma_sysc.tpp",
+        ],
+        "//:fpga": [
+            "v6/axi_api.tpp",
+            "v6/control_modules.tpp",
+            "v6/mm_buffer.tpp",
+            "v6/stream_dma.tpp",
+        ],
+        "//:fpga_arm64": [
+            "v6/axi_api.tpp",
+            "v6/control_modules.tpp",
+            "v6/mm_buffer.tpp",
+            "v6/stream_dma.tpp",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = common_copts + ["-Lhome/jude/Workspace/secda_tools/secda_tools/axi_support/"],
+    deps = [
+        "//secda_tools/secda_profiler:profiler",
+        "//secda_tools/secda_utils",
+    ] + select({
+        "//:sysc": [
+            "//secda_tools/secda_integrator",
+            "@systemc_bazel//:systemc_lib",
+        ],
+        "//:fpga": ["//secda_tools/axi_support:libxlnk_cma"],
+        "//:fpga_arm64": ["//secda_tools/axi_support:libxlnk_cma"],
+        "//conditions:default": ["//secda_tools/axi_support:libxlnk_cma"],
+    }),
+)

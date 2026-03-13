@@ -50,6 +50,9 @@ using namespace std::chrono;
 #define prf_count(TSCALE, X) duration_cast<TSCALE>(X).count()
 
 typedef duration<long long int, std::ratio<1, 1000000000>> duration_ns;
+typedef duration<long long int, std::ratio<1, 1000000>> duration_us;
+typedef duration<long long int, std::ratio<1, 1000>> duration_ms;
+typedef duration<long long int, std::ratio<1, 1>> duration_s;
 
 #ifdef SYSC
 #define SYSC_ON(X) X

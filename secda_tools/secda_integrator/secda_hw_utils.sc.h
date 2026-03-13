@@ -37,13 +37,17 @@
   dut->clock(scs->clk_clock);                                                  \
   dut->reset(scs->sig_reset);
 
+#define SIGWRITE(X, VAL)                                                       \
+  X.write(VAL);                                                                \
+  X##S.write(VAL);
+
+#define HWC_SIG(X, VAL) X##_si.write(VAL);
 // ================================================================
 // Control Unit Macros || Synthesizable and Simulation
 // ================================================================
 static unsigned int CTRL_SIG_Counter = 0;
 
-
-#define SLV_Prag(signame)                                                   \
+#define SLV_Prag(signame)                                                      \
   PRAGMA(HLS resource core = AXI4LiteS metadata =                              \
              "-bus_bundle slv0" variable = signame)
 
@@ -58,6 +62,10 @@ static unsigned int CTRL_SIG_Counter = 0;
 #define CTRL_Define_Signals                                                    \
   sc_signal<bool> sig_start;                                                   \
   sc_signal<bool> sig_done;
+
+#define CTRL_Bind_Signals(dut, scs)                                            \
+  dut->done(scs->sig_done);                                                    \
+  dut->start(scs->sig_start);
 
 #define CTRL_Bind_CtrlSignals(dut, ctrl)                                       \
   dut->done(ctrl->ctrl_sigs->sig_done);                                        \
@@ -92,6 +100,47 @@ static unsigned int CTRL_SIG_Counter = 0;
              "-bus_bundle M_AXIS_DATA1" port_map = {                           \
                  {signame##_0 TDATA} {signame##_1 TLAST}})
 
+#define AXI4S_In_Prag1(signame)                                                \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle S_AXIS_DATA1" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_Out_Prag1(signame)                                               \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle M_AXIS_DATA1" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_In_Prag2(signame)                                                \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle S_AXIS_DATA2" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_Out_Prag2(signame)                                               \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle M_AXIS_DATA2" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_In_Prag3(signame)                                                \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle S_AXIS_DATA3" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_Out_Prag3(signame)                                               \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle M_AXIS_DATA3" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_In_Prag4(signame)                                                \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle S_AXIS_DATA4" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+#define AXI4S_Out_Prag4(signame)                                               \
+  PRAGMA(HLS RESOURCE variable = signame core = AXI4Stream metadata =          \
+             "-bus_bundle M_AXIS_DATA4" port_map = {                           \
+                 {signame##_0 TDATA} {signame##_1 TLAST}})
+
+//==================
 //==================
 // Signal Macros
 //==================
@@ -115,6 +164,9 @@ static unsigned int CTRL_SIG_Counter = 0;
 #define SigOut_Write(X, VAL)                                                   \
   X.write(VAL);                                                                \
   X##S.write(VAL)
+
+#define Sig_Write(X, Y) X.write(Y)
+
 //==================
 
 // ================================================================
@@ -237,9 +289,9 @@ SC_MODULE(HWC_RESETTER) {
 
 #endif // __SYNTHESIS__
 
-// ================================================================
-// Simulation API Structs
-// ================================================================
+  // ================================================================
+  // Simulation API Structs
+  // ================================================================
 
 #ifndef __SYNTHESIS__
 

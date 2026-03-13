@@ -41,8 +41,7 @@ using namespace std;
 #define S2MM_DESTINATION_ADDRESS 0x48
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
-
-// TODO: Clean up code and seperate to AXI4Lite, AXI4S, AXI4MM
+#define USE_UBUF
 
 // ================================================================================
 // AXI4Lite API
@@ -123,7 +122,11 @@ T *mm_alloc_rw(unsigned int address, unsigned int buffer_size) {
   void *addr = mmap(NULL, buffer_size + virt_offset, PROT_READ | PROT_WRITE,
                     MAP_SHARED, fd, virt_base);
   close(fd);
-  if (addr == (void *)-1) exit(EXIT_FAILURE);
+  if (addr == (void *)-1) {
+    cerr << "Failed to mmap address: " << HEX(address)
+         << " with buffer size: " << buffer_size << endl;
+    exit(EXIT_FAILURE);
+  }
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
 }
@@ -136,9 +139,90 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
   void *addr = mmap(NULL, buffer_size + virt_offset, PROT_READ, MAP_SHARED, fd,
                     virt_base);
   close(fd);
-  if (addr == (void *)-1) exit(EXIT_FAILURE);
+  if (addr == (void *)-1) {
+    cerr << "Failed to mmap address: " << HEX(address)
+         << " with buffer size: " << buffer_size << endl;
+    exit(EXIT_FAILURE);
+  }
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
+}
+
+static unsigned int ubuf_alloced[8] = {0};
+
+template <typename T>
+T ubuf_get_phy_addr(int buffer_id) {
+  char attr[1024];
+  T phys_addr = 0;
+  string path =
+      "/sys/class/u-dma-buf/udmabuf" + to_string(buffer_id) + "/phys_addr";
+  int fd;
+  if ((fd = open(path.c_str(), O_RDONLY)) != -1) {
+    ssize_t r = read(fd, attr, sizeof(attr) - 1);
+    if (r > 0) {
+      attr[r] = '\0';
+      sscanf(attr, "%lx", &phys_addr);
+    }
+    close(fd);
+  }
+  return phys_addr;
+}
+
+template <typename T>
+T ubuf_free(int buffer_id) {
+  if (buffer_id < 0 || buffer_id >= 8 || ubuf_alloced[buffer_id] == 0) {
+    cerr << "Invalid buffer ID" << endl;
+    return -1;
+  }
+  string cmd =
+      "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
+  ubuf_alloced[buffer_id] = 0;
+  return system(cmd.c_str());
+}
+
+template <typename T>
+T *ubuf_mm_alloc_rw(unsigned int buffer_size, int buffer_id) {
+  string cmd = "sudo sh -c \"echo 'create udmabuf" + to_string(buffer_id) +
+               " " + to_string(buffer_size) + "' > /dev/u-dma-buf-mgr\"";
+  ubuf_alloced[buffer_id] = buffer_size;
+  string delcmd =
+      "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
+  // cerr << cmd << endl;
+  int ret = system(cmd.c_str());
+  if (ret != 0) {
+    cerr << "Failed to create udmabuf" << buffer_id << " of size "
+         << buffer_size << endl;
+    exit(EXIT_FAILURE);
+  } else {
+    cerr << delcmd << endl;
+  }
+
+  unsigned long phys_addr = ubuf_get_phy_addr<unsigned long>(buffer_id);
+  return mm_alloc_rw<int>(phys_addr, buffer_size);
+
+  // string path = "/dev/udmabuf" + to_string(buffer_id);
+  // int fd = open(path.c_str(), O_RDWR );
+  // size_t virt_base = phys_addr & ~(getpagesize() - 1);
+  // size_t virt_offset = phys_addr - virt_base;
+  // void *addr = mmap(NULL, buffer_size, PROT_READ, MAP_SHARED, fd, 0);
+  // close(fd);
+  // if (addr == (void *)-1) {
+  //   cerr << "Failed to mmap address: " << HEX(phys_addr)
+  //        << " with buffer size: " << buffer_size << endl;
+  //   exit(EXIT_FAILURE);
+  // }
+  // T *acc = reinterpret_cast<T *>(addr);
+  // return acc;
+
+  // void *addr;
+  // int fd;
+  // if ((fd = open(path.c_str(), O_RDWR | O_SYNC)) != -1) {
+  //   addr = mmap(NULL, buffer_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+  //   0); close(fd);
+  // }
+  // if (addr == (void *)-1) exit(EXIT_FAILURE);
+  // T *acc = reinterpret_cast<T *>(addr);
+  // return acc;
 }
 
 template <typename T>
@@ -169,6 +253,7 @@ T *cmap_alloc_rw(unsigned int buffer_size) {
   void *buf = cma_alloc(buffer_size, 0);
   if (buf == NULL) {
     cerr << "Failed to allocate CMA Buffer" << endl;
+    exit(EXIT_FAILURE);
     return NULL;
   }
   T *acc = reinterpret_cast<T *>(buf);
@@ -354,6 +439,8 @@ struct cma_buffer {
 
 template <int B, int T>
 struct stream_dma {
+
+  bool sg_mode = false;
   unsigned int *dma_addr;
   int *input;
   int *output;
@@ -377,12 +464,16 @@ struct stream_dma {
   const int id;
   int cma_id = 0;
 
-  unsigned int data_transfered = 0;
-  unsigned int data_transfered_recv = 0;
-  unsigned int data_send_count = 0;
-  unsigned int data_recv_count = 0;
-  duration_ns send_wait;
-  duration_ns recv_wait;
+  int ubuf_id_in = -1;
+  int ubuf_id_out = -1;
+  static int ubuf_id;
+
+  uint64_t data_transfered = 0;
+  uint64_t data_transfered_recv = 0;
+  uint64_t data_send_count = 0;
+  uint64_t data_recv_count = 0;
+  duration_ns send_wait = duration_ns::zero();
+  duration_ns recv_wait = duration_ns::zero();
   chrono::high_resolution_clock::time_point send_start;
 
 #ifdef SYSC
@@ -393,17 +484,13 @@ struct stream_dma {
              unsigned int _input_size, unsigned int _output,
              unsigned int _output_size);
 
-  stream_dma(unsigned int _dma_addr, unsigned int _input, unsigned int _r_paddr,
-             unsigned int _input_size, unsigned int _output,
-             unsigned int _w_paddr, unsigned int _output_size);
-
   stream_dma();
 
   ~stream_dma();
 
   void dma_init(unsigned int _dma_addr, unsigned int _input,
                 unsigned int _input_size, unsigned int _output,
-                unsigned int _output_size);
+                unsigned int _output_size, bool _sg_mode = false);
 
   void initDMA(unsigned int src, unsigned int dst);
 
@@ -430,6 +517,14 @@ struct stream_dma {
   void dma_wait_recv();
 
   int dma_check_recv();
+
+  void dma_sync_mem();
+
+  float get_send_bandwidth();
+
+  float get_recv_bandwidth();
+
+  void profile_reset();
 
   void print_times();
 
@@ -473,7 +568,8 @@ struct multi_dma {
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int in_buffer_size, unsigned int out_buffer_size);
+            unsigned int in_buffer_size, unsigned int out_buffer_size,
+            bool sg_mode = false);
 
   void multi_free_dmas();
 
