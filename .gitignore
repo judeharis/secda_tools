@@ -2,3 +2,5 @@
 build
 bazel-*
 secda_tools.code-workspace
+secda_tools/axi_support/xrt
+secda_tools/axi_support/arch64/libxrt_coreutil.so

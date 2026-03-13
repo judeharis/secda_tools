@@ -33,6 +33,7 @@ SC_MODULE(AXIS_ENGINE) {
         }
         din1.write({dO, 1});
         packets_sent++;
+        // cout << i << " / " << input_len << " sent" << endl;
         wait();
       }
       while (initial_free != din1.num_free()) wait();

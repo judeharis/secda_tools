@@ -62,7 +62,7 @@ void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
 }
 
 // ===============================================================================
-// AXI4Lite acc_ctrl
+// acc_ctrl
 // ===============================================================================
 
 template <typename T>
@@ -136,7 +136,7 @@ void acc_ctrl<T>::print_reg_map(bool clear_console) {
 }
 
 // ================================================================================
-// AXI4Lite hwc_ctrl
+// hwc_ctrl
 // ================================================================================
 
 template <typename T>
@@ -253,10 +253,10 @@ template <int B, int T>
 int stream_dma<B, T>::s_id = 0;
 // int sr_id = 0;
 
-// TODO: Implement SG Mode
 template <int B, int T>
 stream_dma<B, T>::stream_dma(unsigned int _dma_addr, unsigned int _input,
-                             unsigned int _input_size, unsigned int _output,
+                             unsigned int _r_paddr, unsigned int _input_size,
+                             unsigned int _output, unsigned int _w_paddr,
                              unsigned int _output_size)
     : id(s_id++) {
   string name("SDMA" + to_string(id));
@@ -267,8 +267,8 @@ stream_dma<B, T>::stream_dma(unsigned int _dma_addr, unsigned int _input,
   dmad->input_offset = 0;
   dmad->output_len = 0;
   dmad->output_offset = 0;
-  dmad->r_paddr = _input;
-  dmad->w_paddr = _output;
+  dmad->r_paddr = _r_paddr;
+  dmad->w_paddr = _w_paddr;
   dma_init(_dma_addr, _input, _input_size, _output, _output_size);
 }
 
@@ -290,11 +290,10 @@ stream_dma<B, T>::~stream_dma() {
   delete dmad;
 }
 
-// TODO: Implement SG Mode
 template <int B, int T>
 void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
                                 unsigned int _input_size, unsigned int _output,
-                                unsigned int _output_size, bool _sg_mode) {
+                                unsigned int _output_size) {
   input = (int *)malloc(_input_size * sizeof(int));
   output = (int *)malloc(_output_size * sizeof(int));
 
@@ -416,39 +415,6 @@ int stream_dma<B, T>::dma_check_recv() {
 }
 
 template <int B, int T>
-void stream_dma<B, T>::dma_sync_mem() {}
-
-template <int B, int T>
-float stream_dma<B, T>::get_send_bandwidth() {
-  float sendtime = (float)prf_count(TSCALE, send_wait) / 1000000;
-  float data_transfered_MB = (float)data_transfered / 1000000;
-  if (duration_cast<TSCALE>(send_wait).count() == 0) send_wait = nanoseconds(1);
-  if (data_send_count == 0) return 0;
-  return (data_transfered_MB / sendtime);
-}
-
-template <int B, int T>
-float stream_dma<B, T>::get_recv_bandwidth() {
-  float recvtime = (float)prf_count(TSCALE, recv_wait) / 1000000;
-  float data_recv_MB = (float)data_transfered_recv / 1000000;
-  if (duration_cast<TSCALE>(recv_wait).count() == 0) recv_wait = nanoseconds(1);
-  if (data_recv_count == 0) return 0;
-  return (data_recv_MB / recvtime);
-}
-
-template <int B, int T>
-void stream_dma<B, T>::profile_reset() {
-#ifdef ACC_PROFILE
-  data_transfered = 0;
-  data_transfered_recv = 0;
-  data_send_count = 0;
-  data_recv_count = 0;
-  send_wait = nanoseconds(0);
-  recv_wait = nanoseconds(0);
-#endif
-}
-
-template <int B, int T>
 void stream_dma<B, T>::print_times() {
 #ifdef ACC_PROFILE
   cerr << "================================================" << endl;
@@ -563,17 +529,24 @@ unsigned int stream_dma<B, T>::dma_pages_available() {
 }
 
 // ================================================================================
-// Multi Stream DMA API
-// ================================================================================
 
-// TODO: Implement SG Mode
+// =========================== Multi DMAs
 template <int B, int T>
 multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _buffer_size) {
-  multi_dma(_dma_count, _dma_addrs, _dma_addrs_in, _dma_addrs_out, _buffer_size,
-            _buffer_size, false);
+  dma_count = _dma_count;
+  dmas = new stream_dma<B, T>[dma_count];
+  dma_addrs = _dma_addrs;
+  dma_addrs_in = _dma_addrs_in;
+  dma_addrs_out = _dma_addrs_out;
+  in_buffer_size = _buffer_size;
+  out_buffer_size = _buffer_size;
+
+  for (int i = 0; i < dma_count; i++)
+    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>
@@ -581,7 +554,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _in_buffer_size,
-                           unsigned int _out_buffer_size, bool _sg_mode) {
+                           unsigned int _out_buffer_size) {
   dma_count = _dma_count;
   dmas = new stream_dma<B, T>[dma_count];
   dma_addrs = _dma_addrs;
@@ -592,7 +565,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 
   for (int i = 0; i < dma_count; i++)
     dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1, _sg_mode);
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>

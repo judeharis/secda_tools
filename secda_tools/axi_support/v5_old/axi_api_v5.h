@@ -41,7 +41,110 @@ using namespace std;
 #define S2MM_DESTINATION_ADDRESS 0x48
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
-#define USE_UBUF
+
+// TODO: Clean up code and seperate to AXI4Lite, AXI4S, AXI4MM
+
+// ================================================================================
+// Scatter-Gather Buffer Descriptor API
+// ================================================================================
+
+// This section defines the fields of the S2MM (Receive) and MM2S (Transmit) Scatter
+// Gather Descriptors for when the AXI DMA is configured for Scatter/Gather Mode.
+// The descriptor is made up of eight 32-bit base words and 0 or 5 User
+// Application words. The descriptor has future support for 64-bit addresses and
+// support for user application data. Multiple descriptors per packet are
+// supported through the Start of Frame and End of Frame flags. Completed status
+// and Interrupt on Complete are also included. The Buffer Length can describe
+// up to 67,108,863 bytes of data buffer per descriptor. Two descriptor chains
+// are required for the two data transfer directions, MM2S and S2MM.
+
+template <typename T>
+struct sg_desc {
+  // Base 8 words (32-bit each) as described above:
+  // Word 0: Next descriptor pointer (low 32-bit)
+  // Word 1: Buffer address pointer (low 32-bit)
+  // Word 2: Buffer Length + Flags (length uses lower 26 bits)
+  // Word 3: Control (user / reserved usage)
+  // Word 4: Status (set by DMA on completion)
+  // Word 5..7: User application / reserved words
+  uint32_t nex;     // word 0: next descriptor pointer (physical)
+  uint32_t buf;     // word 1: buffer physical address (low 32 bits)
+  uint32_t len;     // word 2: buffer length (low 26 bits) + flags
+  uint32_t ctrl;    // word 3: control/reserved (user definable)
+  uint32_t status;  // word 4: status (DMA writes completion/status info)
+  uint32_t app0;    // word 5: user / application word 0
+  uint32_t app1;    // word 6: user / application word 1
+  uint32_t app2;    // word 7: user / application word 2
+
+  // Optional 5 user application words that many designs optionally use
+  // (occupy addresses after the 8 base words). Keep them here for convenience.
+  uint32_t user[5];
+
+  // Masks and flag bits
+  static constexpr uint32_t LEN_MASK = 0x03FFFFFFu;       // 26 bits -> max 67,108,863
+  static constexpr uint32_t FLAG_IOC  = (1u << 26);       // Interrupt On Complete
+  static constexpr uint32_t FLAG_EOF  = (1u << 27);       // End Of Frame (End of packet)
+  static constexpr uint32_t FLAG_SOF  = (1u << 28);       // Start Of Frame (Start of packet)
+  static constexpr uint32_t FLAG_USER = (1u << 29);       // Generic user flag (design specific)
+  static constexpr uint32_t STATUS_DONE_BIT = (1u << 0);  // status[0] used by DMA to indicate completion (example)
+  // NOTE: Some DMA IPs use different bits/fields for status; adapt as required.
+
+  // Constructors
+  sg_desc() { clear(); }
+
+  // Clear descriptor (zeros all fields)
+  void clear() {
+    nex = buf = len = ctrl = status = app0 = app1 = app2 = 0;
+    for (int i = 0; i < 5; ++i) user[i] = 0;
+  }
+
+  // Convenience setters
+  void set_next_phys(uint32_t next_phys) { nex = next_phys; }
+  void set_buffer_phys(uint32_t buf_phys) { buf = buf_phys; }
+  void set_length(uint32_t length_bytes) {
+    len = (len & ~LEN_MASK) | (length_bytes & LEN_MASK);
+  }
+
+  // Flag helpers operate on the len field (as per many SG descriptor conventions)
+  void set_ioc(bool enable = true) {
+    if (enable) len |= FLAG_IOC;
+    else len &= ~FLAG_IOC;
+  }
+  void set_sof(bool enable = true) {
+    if (enable) len |= FLAG_SOF;
+    else len &= ~FLAG_SOF;
+  }
+  void set_eof(bool enable = true) {
+    if (enable) len |= FLAG_EOF;
+    else len &= ~FLAG_EOF;
+  }
+  void set_user_flag(bool enable = true) {
+    if (enable) len |= FLAG_USER;
+    else len &= ~FLAG_USER;
+  }
+
+  // Control / status helpers (status is typically written by DMA)
+  void clear_status() { status = 0; }
+  bool is_done() const { return (status & STATUS_DONE_BIT) != 0; }
+  void mark_done() { status |= STATUS_DONE_BIT; } // useful for software simulation / tests
+
+  // Returns pointer to raw descriptor words (useful to write descriptor into DMA-mapped memory)
+  uint32_t *words() { return reinterpret_cast<uint32_t *>(this); }
+  const uint32_t *words() const { return reinterpret_cast<const uint32_t *>(this); }
+
+  // Size (in 32-bit words) of the base descriptor (8 words). If your DMA expects
+  // the additional 5 user words, use word_count_with_user().
+  static constexpr size_t word_count() { return 8; }
+  static constexpr size_t word_count_with_user() { return 8 + 5; }
+
+  // Helper to set the optional user words quickly (up to 5)
+  void set_user_words(const uint32_t *w, size_t n) {
+    if (!w) return;
+    size_t m = (n > 5) ? 5 : n;
+    for (size_t i = 0; i < m; ++i) user[i] = w[i];
+  }
+};
+
 
 // ================================================================================
 // AXI4Lite API
@@ -114,6 +217,62 @@ struct acc_regmap {
 // Memory Map API
 // ================================================================================
 
+static unsigned int ubuf_alloced[8] = {0};
+
+template <typename T>
+T *ubuf_mm_alloc_rw(unsigned int address, unsigned int buffer_size,
+                    int buffer_id) {
+  string cmd = "echo 'create udmabuf" + to_string(buffer_id) + " " +
+               to_string(buffer_size) + "' > /dev/u-dma-buf-mgr";
+  ubuf_alloced[buffer_id] = buffer_size;
+  // cout << "Allocating u-dmabuf" << buffer_id << " of size " << buffer_size
+  //      << " bytes" << endl;
+  // cout << cmd << endl;
+  int ret = system(cmd.c_str());
+  if (ret != 0) {
+    cerr << "Failed to create udmabuf" << buffer_id << " of size " << buffer_size << endl;
+    exit(EXIT_FAILURE);
+  }
+  string path = "/dev/udmabuf" + to_string(buffer_id);
+  void *addr;
+  int fd;
+  if ((fd = open(path.c_str(), O_RDWR | O_SYNC)) != -1) {
+    addr = mmap(NULL, buffer_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+  }
+  if (addr == (void *)-1) exit(EXIT_FAILURE);
+  T *acc = reinterpret_cast<T *>(addr);
+  return acc;
+}
+
+unsigned long ubuf_get_phy_addr(int buffer_id) {
+  char attr[1024];
+  unsigned long phys_addr = 0;
+  string path =
+      "/sys/class/u-dma-buf/udmabuf" + to_string(buffer_id) + "/phys_addr";
+  int fd;
+  if ((fd = open(path.c_str(), O_RDONLY)) != -1) {
+    ssize_t r = read(fd, attr, sizeof(attr) - 1);
+    if (r > 0) {
+      attr[r] = '\0';
+      sscanf(attr, "%lx", &phys_addr);
+    }
+    close(fd);
+  }
+  return phys_addr;
+}
+
+unsigned int ubuf_free(int buffer_id) {
+  if (buffer_id < 0 || buffer_id >= 8 || ubuf_alloced[buffer_id] == 0) {
+    cerr << "Invalid buffer ID" << endl;
+    return -1;
+  }
+  string cmd =
+      "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
+  ubuf_alloced[buffer_id] = 0;
+  return system(cmd.c_str());
+}
+
 template <typename T>
 T *mm_alloc_rw(unsigned int address, unsigned int buffer_size) {
   int fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -146,83 +305,6 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
   }
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
-}
-
-static unsigned int ubuf_alloced[8] = {0};
-
-template <typename T>
-T ubuf_get_phy_addr(int buffer_id) {
-  char attr[1024];
-  T phys_addr = 0;
-  string path =
-      "/sys/class/u-dma-buf/udmabuf" + to_string(buffer_id) + "/phys_addr";
-  int fd;
-  if ((fd = open(path.c_str(), O_RDONLY)) != -1) {
-    ssize_t r = read(fd, attr, sizeof(attr) - 1);
-    if (r > 0) {
-      attr[r] = '\0';
-      sscanf(attr, "%lx", &phys_addr);
-    }
-    close(fd);
-  }
-  return phys_addr;
-}
-
-template <typename T>
-T ubuf_free(int buffer_id) {
-  if (buffer_id < 0 || buffer_id >= 8 || ubuf_alloced[buffer_id] == 0) {
-    cerr << "Invalid buffer ID" << endl;
-    return -1;
-  }
-  string cmd =
-      "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
-  ubuf_alloced[buffer_id] = 0;
-  return system(cmd.c_str());
-}
-
-template <typename T>
-T *ubuf_mm_alloc_rw(unsigned int buffer_size, int buffer_id) {
-  string cmd = "sudo sh -c \"echo 'create udmabuf" + to_string(buffer_id) +
-               " " + to_string(buffer_size) + "' > /dev/u-dma-buf-mgr\"";
-  ubuf_alloced[buffer_id] = buffer_size;
-  string delcmd =
-      "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
-  // cerr << cmd << endl;
-  int ret = system(cmd.c_str());
-  if (ret != 0) {
-    cerr << "Failed to create udmabuf" << buffer_id << " of size "
-         << buffer_size << endl;
-    exit(EXIT_FAILURE);
-  } else {
-    cerr << delcmd << endl;
-  }
-
-  unsigned long phys_addr = ubuf_get_phy_addr<unsigned long>(buffer_id);
-  return mm_alloc_rw<int>(phys_addr, buffer_size);
-
-  // string path = "/dev/udmabuf" + to_string(buffer_id);
-  // int fd = open(path.c_str(), O_RDWR );
-  // size_t virt_base = phys_addr & ~(getpagesize() - 1);
-  // size_t virt_offset = phys_addr - virt_base;
-  // void *addr = mmap(NULL, buffer_size, PROT_READ, MAP_SHARED, fd, 0);
-  // close(fd);
-  // if (addr == (void *)-1) {
-  //   cerr << "Failed to mmap address: " << HEX(phys_addr)
-  //        << " with buffer size: " << buffer_size << endl;
-  //   exit(EXIT_FAILURE);
-  // }
-  // T *acc = reinterpret_cast<T *>(addr);
-  // return acc;
-
-  // void *addr;
-  // int fd;
-  // if ((fd = open(path.c_str(), O_RDWR | O_SYNC)) != -1) {
-  //   addr = mmap(NULL, buffer_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
-  //   0); close(fd);
-  // }
-  // if (addr == (void *)-1) exit(EXIT_FAILURE);
-  // T *acc = reinterpret_cast<T *>(addr);
-  // return acc;
 }
 
 template <typename T>
@@ -439,8 +521,6 @@ struct cma_buffer {
 
 template <int B, int T>
 struct stream_dma {
-
-  bool sg_mode = false;
   unsigned int *dma_addr;
   int *input;
   int *output;
@@ -468,12 +548,12 @@ struct stream_dma {
   int ubuf_id_out = -1;
   static int ubuf_id;
 
-  uint64_t data_transfered = 0;
-  uint64_t data_transfered_recv = 0;
-  uint64_t data_send_count = 0;
-  uint64_t data_recv_count = 0;
-  duration_ns send_wait = duration_ns::zero();
-  duration_ns recv_wait = duration_ns::zero();
+  unsigned int data_transfered = 0;
+  unsigned int data_transfered_recv = 0;
+  unsigned int data_send_count = 0;
+  unsigned int data_recv_count = 0;
+  duration_ns send_wait;
+  duration_ns recv_wait;
   chrono::high_resolution_clock::time_point send_start;
 
 #ifdef SYSC
@@ -484,13 +564,17 @@ struct stream_dma {
              unsigned int _input_size, unsigned int _output,
              unsigned int _output_size);
 
+  stream_dma(unsigned int _dma_addr, unsigned int _input, unsigned int _r_paddr,
+             unsigned int _input_size, unsigned int _output,
+             unsigned int _w_paddr, unsigned int _output_size);
+
   stream_dma();
 
   ~stream_dma();
 
   void dma_init(unsigned int _dma_addr, unsigned int _input,
                 unsigned int _input_size, unsigned int _output,
-                unsigned int _output_size, bool _sg_mode = false);
+                unsigned int _output_size);
 
   void initDMA(unsigned int src, unsigned int dst);
 
@@ -517,14 +601,6 @@ struct stream_dma {
   void dma_wait_recv();
 
   int dma_check_recv();
-
-  void dma_sync_mem();
-
-  float get_send_bandwidth();
-
-  float get_recv_bandwidth();
-
-  void profile_reset();
 
   void print_times();
 
@@ -568,8 +644,7 @@ struct multi_dma {
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int in_buffer_size, unsigned int out_buffer_size,
-            bool sg_mode = false);
+            unsigned int in_buffer_size, unsigned int out_buffer_size);
 
   void multi_free_dmas();
 

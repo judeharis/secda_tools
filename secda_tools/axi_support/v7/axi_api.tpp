@@ -77,14 +77,10 @@ T *mm_buffer<T>::get_buffer() {
   return buffer;
 }
 template <typename T>
-void mm_buffer<T>::sync_from_acc() {
-  msync(buffer, size * sizeof(T), MS_SYNC);
-}
+void mm_buffer<T>::sync_from_acc() {}
 
 template <typename T>
-void mm_buffer<T>::sync_to_acc() {
-  msync(buffer, size * sizeof(T), MS_ASYNC);
-}
+void mm_buffer<T>::sync_to_acc() {}
 
 // ================================================================================
 // ACC Control API
@@ -169,9 +165,7 @@ void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
     cerr << "Setting Invalid Signal Address" << endl;
     return;
   }
-  // Print the register address in hex without stringstream
-  cout << "Setting reg[0x" << std::hex << (0x24 + reg * 8) << std::dec
-       << "] = " << val << endl;
+  cout << "Setting reg[" << (0x24 + reg * 8) << "] = " << val << endl;
   write_reg(0x24 + reg * 8, val);
   msync(reg_base, PAGE_SIZE, MS_SYNC);
 }
@@ -183,9 +177,7 @@ void acc_ctrl<T>::print_reg_map(bool clear_console) {
   cout << "================================================" << endl;
   cout << "ACC Control Register Map" << endl;
   for (int i = 0; i < sig_count; i++) {
-    unsigned int reg_addr = 0x24 + i * 8;
-    cout << "Reg[0x" << std::hex << reg_addr << std::dec << "]: " << get_reg(i)
-         << endl;
+    cout << "Reg[" << (0x24 + i * 8) << "]: " << get_reg(i) << endl;
   }
   cout << "================================================" << endl;
 }
@@ -257,8 +249,6 @@ void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
 // ================================================================================
 template <int B, int T>
 int stream_dma<B, T>::s_id = 0;
-template <int B, int T>
-int stream_dma<B, T>::ubuf_id = 0;
 // int sr_id = 0;
 
 template <int B, int T>
@@ -280,60 +270,31 @@ stream_dma<B, T>::~stream_dma() {
 template <int B, int T>
 void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
                                 unsigned int _input_size, unsigned int _output,
-                                unsigned int _output_size, bool _sg_mode) {
-  sg_mode = _sg_mode;
+                                unsigned int _output_size) {
   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
-  if (sg_mode) {
-    cerr << "SG MODE NOT IMPLEMENTED, FALLBACK TO NON-SG MODE" << endl;
-    exit(EXIT_FAILURE);
-  } else {
 
-#ifdef KRIA
+  // #ifdef KRIA
+  cerr << "KRIA ALLOC" << endl;
+  input = mm_alloc_rw<int>(_input, _input_size);
+  output = mm_alloc_r<int>(_output, _output_size);
+  input_size = _input_size;
+  output_size = _output_size;
+  input_addr = _input;
+  output_addr = _output;
+  // #else
+  //   cout << "CMA ALLOC" << endl;
+  //   input = cmap_alloc_rw<int>(_input_size);
+  //   output = cmap_alloc_rw<int>(_output_size);
+  //   int *input_buf = reinterpret_cast<int *>(input);
+  //   int *output_buf = reinterpret_cast<int *>(output);
+  //   input_addr = cma_get_phy_addr(input_buf);
+  //   output_addr = cma_get_phy_addr(output_buf);
+  // #endif
 
-#ifdef USE_UBUF
-    cerr << "UBUF ALLOC" << endl;
-
-    ubuf_id_in = ubuf_id++;
-    ubuf_id_out = ubuf_id++;
-    input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
-    output = ubuf_mm_alloc_rw<int>(_output_size, ubuf_id_out);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
-    output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
-#else
-    // cerr << "RAW ALLOC" << endl;
-    // input = mm_alloc_rw<int>(_input, _input_size);
-    // output = mm_alloc_r<int>(_output, _output_size);
-    // input_size = _input_size;
-    // output_size = _output_size;
-    // input_addr = _input;
-    // output_addr = _output;
-#endif
-
-#else
-    // cout << "CMA ALLOC" << endl;
-    // input = cmap_alloc_rw<int>(_input_size);
-    // output = cmap_alloc_rw<int>(_output_size);
-    // int *input_buf = reinterpret_cast<int *>(input);
-    // int *output_buf = reinterpret_cast<int *>(output);
-    // input_addr = cma_get_phy_addr(input_buf);
-    // output_addr = cma_get_phy_addr(output_buf);
-
-    cerr << "RAW ALLOC" << endl;
-    input = mm_alloc_rw<int>(_input, _input_size);
-    output = mm_alloc_r<int>(_output, _output_size);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = _input;
-    output_addr = _output;
-
-#endif
-    initDMA(input_addr, output_addr);
-    cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
-         << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
-         << " size: " << _output_size << endl;
-  }
+  initDMA(input_addr, output_addr);
+  cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
+       << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
+       << " size: " << _output_size << endl;
 }
 
 template <int B, int T>
@@ -401,18 +362,9 @@ template <int B, int T>
 void stream_dma<B, T>::dma_free() {
   cout << "DMA: " << id << " freed " << endl;
   print_times();
-  cma_munmap(dma_addr, PAGE_SIZE);
-#ifdef KRIA
-  munmap(input, input_size);
-  munmap(output, output_size);
-#ifdef USE_UBUF
-  if (ubuf_id_in >= 0) ubuf_free<unsigned int>(ubuf_id_in);
-  if (ubuf_id_out >= 0) ubuf_free<unsigned int>(ubuf_id_out);
-#endif
-#else
   cma_free(input);
   cma_free(output);
-#endif
+  cma_munmap(dma_addr, PAGE_SIZE);
   // munlockall();
 }
 
@@ -421,10 +373,6 @@ int *stream_dma<B, T>::dma_get_inbuffer() {
   return input;
 }
 
-// template <int B, int T>
-// vector<cma_buffer> stream_dma<B, T>::dma_get_inbuffers() {
-//   return input_bufs;
-// }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_outbuffer() {
@@ -489,42 +437,6 @@ int stream_dma<B, T>::dma_check_recv() {
 }
 
 template <int B, int T>
-void stream_dma<B, T>::dma_sync_mem() {
-  msync(input, input_size, MS_SYNC);
-  msync(output, output_size, MS_SYNC);
-}
-
-template <int B, int T>
-float stream_dma<B, T>::get_send_bandwidth() {
-  float sendtime = (float)prf_count(TSCALE, send_wait) / 1000000;
-  float data_transfered_MB = (float)data_transfered / 1000000;
-  if (duration_cast<TSCALE>(send_wait).count() == 0) send_wait = nanoseconds(1);
-  if (data_send_count == 0) return 0;
-  return (data_transfered_MB / sendtime);
-}
-
-template <int B, int T>
-float stream_dma<B, T>::get_recv_bandwidth() {
-  float recvtime = (float)prf_count(TSCALE, recv_wait) / 1000000;
-  float data_recv_MB = (float)data_transfered_recv / 1000000;
-  if (duration_cast<TSCALE>(recv_wait).count() == 0) recv_wait = nanoseconds(1);
-  if (data_recv_count == 0) return 0;
-  return (data_recv_MB / recvtime);
-}
-
-template <int B, int T>
-void stream_dma<B, T>::profile_reset() {
-#ifdef ACC_PROFILE
-  data_transfered = 0;
-  data_transfered_recv = 0;
-  data_send_count = 0;
-  data_recv_count = 0;
-  send_wait = nanoseconds(0);
-  recv_wait = nanoseconds(0);
-#endif
-}
-
-template <int B, int T>
 void stream_dma<B, T>::print_times() {
 #ifdef ACC_PROFILE
   cerr << "================================================" << endl;
@@ -559,11 +471,11 @@ void stream_dma<B, T>::print_times() {
           "Speed,Recv Speed,Data Send Count,Data Recv Count,Data per Send,Data "
           "per Recv"
        << std::endl;
-  file << data_transfered << "," << data_transfered_recv << ","
-       << sendtime * 1000000 << "," << recvtime * 1000000 << ","
-       << (data_transfered_MB / sendtime) << "," << (data_recv_MB / recvtime)
-       << "," << data_send_count << "," << data_recv_count << ","
-       << data_per_send << "," << data_per_recv << std::endl;
+  file << data_transfered << "," << data_transfered_recv << "," << sendtime
+       << "," << recvtime << "," << (data_transfered_MB / sendtime) << ","
+       << (data_recv_MB / recvtime) << "," << data_send_count << ","
+       << data_recv_count << "," << data_per_send << "," << data_per_recv
+       << std::endl;
 
 #endif
 }
@@ -649,16 +561,24 @@ unsigned int stream_dma<B, T>::dma_pages_available() {
 }
 
 // ================================================================================
-// Multi Stream DMA API
-// ================================================================================
 
+// =========================== Multi DMAs
 template <int B, int T>
 multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _buffer_size) {
-  multi_dma(_dma_count, _dma_addrs, _dma_addrs_in, _dma_addrs_out, _buffer_size,
-            _buffer_size, false);
+  dma_count = _dma_count;
+  dmas = new stream_dma<B, T>[dma_count];
+  dma_addrs = _dma_addrs;
+  dma_addrs_in = _dma_addrs_in;
+  dma_addrs_out = _dma_addrs_out;
+  in_buffer_size = _buffer_size;
+  out_buffer_size = _buffer_size;
+
+  for (int i = 0; i < dma_count; i++)
+    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>
@@ -666,7 +586,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _in_buffer_size,
-                           unsigned int _out_buffer_size, bool _sg_mode) {
+                           unsigned int _out_buffer_size) {
   dma_count = _dma_count;
   dmas = new stream_dma<B, T>[dma_count];
   dma_addrs = _dma_addrs;
@@ -677,7 +597,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 
   for (int i = 0; i < dma_count; i++)
     dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1, _sg_mode);
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>

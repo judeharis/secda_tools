@@ -280,60 +280,56 @@ stream_dma<B, T>::~stream_dma() {
 template <int B, int T>
 void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
                                 unsigned int _input_size, unsigned int _output,
-                                unsigned int _output_size, bool _sg_mode) {
-  sg_mode = _sg_mode;
+                                unsigned int _output_size) {
   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
-  if (sg_mode) {
-    cerr << "SG MODE NOT IMPLEMENTED, FALLBACK TO NON-SG MODE" << endl;
-    exit(EXIT_FAILURE);
-  } else {
 
 #ifdef KRIA
 
-#ifdef USE_UBUF
-    cerr << "UBUF ALLOC" << endl;
-
-    ubuf_id_in = ubuf_id++;
-    ubuf_id_out = ubuf_id++;
-    input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
-    output = ubuf_mm_alloc_rw<int>(_output_size, ubuf_id_out);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
-    output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
+#ifdef DMA_VERBOSE
+  cerr << "================================================" << endl;
+  cerr << "MM_ALLOC" << endl;
+#endif
+  input = mm_alloc_rw<int>(_input, _input_size);
+  output = mm_alloc_r<int>(_output, _output_size);
+  input_size = _input_size;
+  output_size = _output_size;
+  input_addr = _input;
+  output_addr = _output;
+  // ubuf_id_in = ubuf_id++;
+  // ubuf_id_out = ubuf_id++;
+  // input = ubuf_mm_alloc_rw<int>(_input, _input_size, ubuf_id_in);
+  // output = ubuf_mm_alloc_rw<int>(_output, _output_size, ubuf_id_out);
+  // input_size = _input_size;
+  // output_size = _output_size;
+  // input_addr = ubuf_get_phy_addr(ubuf_id_in);
+  // output_addr = ubuf_get_phy_addr(ubuf_id_out);
 #else
-    // cerr << "RAW ALLOC" << endl;
-    // input = mm_alloc_rw<int>(_input, _input_size);
-    // output = mm_alloc_r<int>(_output, _output_size);
-    // input_size = _input_size;
-    // output_size = _output_size;
-    // input_addr = _input;
-    // output_addr = _output;
+
+#ifdef DMA_VERBOSE
+  cerr << "CMA ALLOC" << endl;
 #endif
 
-#else
-    // cout << "CMA ALLOC" << endl;
-    // input = cmap_alloc_rw<int>(_input_size);
-    // output = cmap_alloc_rw<int>(_output_size);
-    // int *input_buf = reinterpret_cast<int *>(input);
-    // int *output_buf = reinterpret_cast<int *>(output);
-    // input_addr = cma_get_phy_addr(input_buf);
-    // output_addr = cma_get_phy_addr(output_buf);
-
-    cerr << "RAW ALLOC" << endl;
-    input = mm_alloc_rw<int>(_input, _input_size);
-    output = mm_alloc_r<int>(_output, _output_size);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = _input;
-    output_addr = _output;
-
+  input = mm_alloc_rw<int>(_input, _input_size);
+  output = mm_alloc_r<int>(_output, _output_size);
+  input_size = _input_size;
+  output_size = _output_size;
+  input_addr = _input;
+  output_addr = _output;
+  // input = cmap_alloc_rw<int>(_input_size);
+  // output = cmap_alloc_rw<int>(_output_size);
+  // int *input_buf = reinterpret_cast<int *>(input);
+  // int *output_buf = reinterpret_cast<int *>(output);
+  // input_addr = cma_get_phy_addr(input_buf);
+  // output_addr = cma_get_phy_addr(output_buf);
 #endif
-    initDMA(input_addr, output_addr);
-    cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
-         << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
-         << " size: " << _output_size << endl;
-  }
+
+  initDMA(input_addr, output_addr);
+  // #ifdef DMA_VERBOSE
+  cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
+       << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
+       << " size: " << _output_size << endl;
+  cerr << "================================================" << endl;
+  // #endif
 }
 
 template <int B, int T>
@@ -399,20 +395,15 @@ void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {
 
 template <int B, int T>
 void stream_dma<B, T>::dma_free() {
-  cout << "DMA: " << id << " freed " << endl;
+  // cout << "DMA: " << id << " freed " << endl;
   print_times();
-  cma_munmap(dma_addr, PAGE_SIZE);
-#ifdef KRIA
-  munmap(input, input_size);
-  munmap(output, output_size);
-#ifdef USE_UBUF
-  if (ubuf_id_in >= 0) ubuf_free<unsigned int>(ubuf_id_in);
-  if (ubuf_id_out >= 0) ubuf_free<unsigned int>(ubuf_id_out);
-#endif
-#else
   cma_free(input);
   cma_free(output);
-#endif
+  cma_munmap(input, input_size);
+  cma_munmap(output, output_size);
+  cma_munmap(dma_addr, PAGE_SIZE);
+  // if (ubuf_id_in >= 0) ubuf_free(ubuf_id_in);
+  // if (ubuf_id_out >= 0) ubuf_free(ubuf_id_out);
   // munlockall();
 }
 
@@ -486,42 +477,6 @@ int stream_dma<B, T>::dma_check_recv() {
   unsigned int s2mm_status = readMappedReg(S2MM_STATUS_REGISTER);
   bool done = !((!(s2mm_status & 1 << 12)) || (!(s2mm_status & 1 << 1)));
   return done ? 0 : -1;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_sync_mem() {
-  msync(input, input_size, MS_SYNC);
-  msync(output, output_size, MS_SYNC);
-}
-
-template <int B, int T>
-float stream_dma<B, T>::get_send_bandwidth() {
-  float sendtime = (float)prf_count(TSCALE, send_wait) / 1000000;
-  float data_transfered_MB = (float)data_transfered / 1000000;
-  if (duration_cast<TSCALE>(send_wait).count() == 0) send_wait = nanoseconds(1);
-  if (data_send_count == 0) return 0;
-  return (data_transfered_MB / sendtime);
-}
-
-template <int B, int T>
-float stream_dma<B, T>::get_recv_bandwidth() {
-  float recvtime = (float)prf_count(TSCALE, recv_wait) / 1000000;
-  float data_recv_MB = (float)data_transfered_recv / 1000000;
-  if (duration_cast<TSCALE>(recv_wait).count() == 0) recv_wait = nanoseconds(1);
-  if (data_recv_count == 0) return 0;
-  return (data_recv_MB / recvtime);
-}
-
-template <int B, int T>
-void stream_dma<B, T>::profile_reset() {
-#ifdef ACC_PROFILE
-  data_transfered = 0;
-  data_transfered_recv = 0;
-  data_send_count = 0;
-  data_recv_count = 0;
-  send_wait = nanoseconds(0);
-  recv_wait = nanoseconds(0);
-#endif
 }
 
 template <int B, int T>
@@ -649,16 +604,24 @@ unsigned int stream_dma<B, T>::dma_pages_available() {
 }
 
 // ================================================================================
-// Multi Stream DMA API
-// ================================================================================
 
+// =========================== Multi DMAs
 template <int B, int T>
 multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _buffer_size) {
-  multi_dma(_dma_count, _dma_addrs, _dma_addrs_in, _dma_addrs_out, _buffer_size,
-            _buffer_size, false);
+  dma_count = _dma_count;
+  dmas = new stream_dma<B, T>[dma_count];
+  dma_addrs = _dma_addrs;
+  dma_addrs_in = _dma_addrs_in;
+  dma_addrs_out = _dma_addrs_out;
+  in_buffer_size = _buffer_size;
+  out_buffer_size = _buffer_size;
+
+  for (int i = 0; i < dma_count; i++)
+    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>
@@ -666,7 +629,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _in_buffer_size,
-                           unsigned int _out_buffer_size, bool _sg_mode) {
+                           unsigned int _out_buffer_size) {
   dma_count = _dma_count;
   dmas = new stream_dma<B, T>[dma_count];
   dma_addrs = _dma_addrs;
@@ -677,7 +640,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 
   for (int i = 0; i < dma_count; i++)
     dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1, _sg_mode);
+                     dma_addrs_out[i], out_buffer_size * 1);
 }
 
 template <int B, int T>
@@ -771,3 +734,85 @@ void multi_dma<B, T>::print_times() {
 }
 
 #endif
+
+// template <int B, int T>
+// void stream_dma<B, T>::dma_start_send(int length) {
+// #ifndef DISABLE_DMA
+//   prf_start_x(send_start);
+
+//   unsigned int bytes = length * (B / 8);
+//   const unsigned int CHUNK_BYTES = 4 * 1024;
+//   unsigned int remaining = bytes;
+//   unsigned int offset_bytes = 0;
+//   unsigned int current_addr = readMappedReg(MM2S_START_ADDRESS);
+//   while (remaining > 0) {
+//     unsigned int send_bytes =
+//         (remaining > CHUNK_BYTES) ? CHUNK_BYTES : remaining;
+// #ifdef ACC_PROFILE
+//     data_transfered += send_bytes;
+//     data_send_count++;
+// #endif
+//     // set DMA start address to input base + offset (physical)
+//     dma_change_start(offset_bytes);
+//     // ensure the chunk is visible to DMA
+//     msync(reinterpret_cast<char *>(input) + offset_bytes, send_bytes,
+//           MS_SYNC | MS_INVALIDATE);
+//     // start this chunk transfer
+//     writeMappedReg(MM2S_LENGTH, send_bytes);
+//     // wait for this chunk to complete before issuing the next
+//     dma_mm2s_sync();
+//     remaining -= send_bytes;
+//     offset_bytes += send_bytes;
+//   }
+//   dma_change_start(current_addr, 0);
+//   // msync(input, input_size, MS_SYNC | MS_INVALIDATE);
+//   // writeMappedReg(MM2S_LENGTH, length * (B / 8));
+// #endif
+// }
+
+// template <int B, int T>
+// void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
+//                                 unsigned int _input_size, unsigned int
+//                                 _output, unsigned int _output_size) {
+//   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
+
+// #ifdef KRIA
+// // #ifdef DMA_VERBOSE
+//   cerr << "================================================" << endl;
+//   cerr << "MM_ALLOC" << endl;
+// // #endif
+//   input = mm_alloc_rw<int>(_input, _input_size);
+//   output = mm_alloc_r<int>(_output, _output_size);
+//   input_size = _input_size;
+//   output_size = _output_size;
+//   input_addr = _input;
+//   output_addr = _output;
+
+//   // ubuf_id_in = ubuf_id++;
+//   // ubuf_id_out = ubuf_id++;
+//   // input = ubuf_mm_alloc_rw<int>(_input, _input_size, ubuf_id_in);
+//   // output = ubuf_mm_alloc_rw<int>(_output, _output_size, ubuf_id_out);
+//   // input_size = _input_size;
+//   // output_size = _output_size;
+//   // input_addr = ubuf_get_phy_addr(ubuf_id_in);
+//   // output_addr = ubuf_get_phy_addr(ubuf_id_out);
+// #else
+// #ifdef DMA_VERBOSE
+//   cerr << "CMA ALLOC" << endl;
+// #endif
+//   input = cmap_alloc_rw<int>(_input_size);
+//   output = cmap_alloc_rw<int>(_output_size);
+//   int *input_buf = reinterpret_cast<int *>(input);
+//   int *output_buf = reinterpret_cast<int *>(output);
+//   input_addr = cma_get_phy_addr(input_buf);
+//   output_addr = cma_get_phy_addr(output_buf);
+// #endif
+
+//   initDMA(input_addr, output_addr);
+// // #ifdef DMA_VERBOSE
+//   cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
+//        << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
+//        << " size: " << _output_size << endl;
+//   cerr << "================================================" << endl;
+// // #endif
+// }
