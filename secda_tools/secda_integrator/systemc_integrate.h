@@ -8,7 +8,7 @@
 int sc_main(int argc, char* argv[]) { return 0; }
 
 void sysC_init() {
-  cout << "SECDA_TOOLS: 0.2.1" << endl;
+  cout << "SECDA_TOOLS: 0.2.2" << endl;
   sc_report_handler::set_actions("/IEEE_Std_1666/deprecated", SC_DO_NOTHING);
   sc_report_handler::set_actions(SC_ID_LOGIC_X_TO_BOOL_, SC_LOG);
   sc_report_handler::set_actions(SC_ID_VECTOR_CONTAINS_LOGIC_VALUE_, SC_LOG);
