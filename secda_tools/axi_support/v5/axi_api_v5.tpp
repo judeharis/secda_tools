@@ -302,13 +302,13 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
     input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
     output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
 #else
-    // cerr << "RAW ALLOC" << endl;
-    // input = mm_alloc_rw<int>(_input, _input_size);
-    // output = mm_alloc_r<int>(_output, _output_size);
-    // input_size = _input_size;
-    // output_size = _output_size;
-    // input_addr = _input;
-    // output_addr = _output;
+    cerr << "RAW ALLOC" << endl;
+    input = mm_alloc_rw<int>(_input, _input_size);
+    output = mm_alloc_r<int>(_output, _output_size);
+    input_size = _input_size;
+    output_size = _output_size;
+    input_addr = _input;
+    output_addr = _output;
 #endif
 
 #else
@@ -584,8 +584,8 @@ int stream_dma<B, T>::dma_alloc_input_buffer(int buffer_size) {
   // cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
   //  << " at address " << ss.str() << endl;
 
-  cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
-       << " at address " << HEX(phy_addr) << endl;
+  // cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
+  //      << " at address " << HEX(phy_addr) << endl;
 
   input_bufs_id.push_back(cma_id);
   input_bufs_ptrs.push_back(input);

@@ -20,11 +20,27 @@
 // Define macros for simulation
 #define PRAGMA(X)
 #define DEFINE_SC_SIGNAL(type, name) sc_signal<type, SC_MANY_WRITERS> name;
+#define DEFINE_SHAKE_SIGNALS(name)                                             \
+  sc_signal<bool, SC_MANY_WRITERS> start_##name;                               \
+  sc_signal<bool, SC_MANY_WRITERS> done_##name;
+
+#define DEFINE_STATUS_SIGNALS(type, name)                                    \
+  sc_signal<type, SC_MANY_WRITERS> name##S;                                    \
+  sc_out<type> name##SS;
+
 #define INITSIGPORT(X, SID) X((std::string(#X)).c_str())
 #else
 
 // Define macros for synthesis
 #define DEFINE_SC_SIGNAL(type, name) sc_signal<type> name;
+#define DEFINE_SHAKE_SIGNALS(name)                                             \
+  sc_signal<bool> start_##name;                                                \
+  sc_signal<bool> done_##name;
+
+#define DEFINE_STATUS_SIGNALS(type, name)                                    \
+  sc_signal<type> name##S;                                                     \
+  sc_out<type> name##SS;
+
 #define INITSIGPORT(X, SID) X((std::string(#X) + std::to_string(SID)).c_str())
 #define PRAGMA(X) _Pragma(#X)
 #endif
@@ -159,6 +175,26 @@ static unsigned int CTRL_SIG_Counter = 0;
   wait();                                                                      \
   while (start_sig.read()) wait();                                             \
   done_sig.write(false);                                                       \
+  wait();
+
+#define Shake_Reset_M(sig) start_##sig.write(0);
+#define Shake_Reset_S(sig) done_##sig.write(0);
+
+#define Shake_Start(sig)                                                       \
+  start_##sig.write(true);                                                     \
+  wait();                                                                      \
+  while (!done_##sig.read()) wait();                                           \
+  start_##sig.write(false);                                                    \
+  wait();
+
+#define Shake_Wait(sig)                                                        \
+  while (!start_##sig.read()) wait();
+
+#define Shake_Done(sig)                                                        \
+  done_##sig.write(true);                                                      \
+  wait();                                                                      \
+  while (start_##sig.read()) wait();                                           \
+  done_##sig.write(false);                                                     \
   wait();
 
 #define SigOut_Write(X, VAL)                                                   \
