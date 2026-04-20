@@ -194,7 +194,8 @@ T *ubuf_mm_alloc_rw(unsigned int buffer_size, int buffer_id) {
          << buffer_size << endl;
     exit(EXIT_FAILURE);
   } else {
-    cerr << delcmd << endl;
+    // cerr << cmd << endl;
+    // cerr << delcmd << endl;
   }
 
   unsigned long phys_addr = ubuf_get_phy_addr<unsigned long>(buffer_id);

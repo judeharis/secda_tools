@@ -46,6 +46,19 @@ static unsigned int HWC_Counter = 0;
 // This defines CTHREADs which are monitored by the HWC
 #define HWC_CTHREAD(name) HWC_Define(name) void name();
 
+// This defines CTHREADs which are monitored by the HWC
+#define HWC_CTHREADSub(name, sig)                                              \
+  HWC_Define(name) void name() {                                               \
+    wait();                                                                    \
+    while (true) {                                                             \
+      PRAGMA(HLS LATENCY max = 0 min = 0)                                      \
+      PRAGMA(HLS protocol fixed)                                               \
+      int state = sig.read();                                                        \
+      name##_si.write(state);                                             \
+      DWAIT();                                                                 \
+    }                                                                          \
+  };
+
 // This defines the logic for the HWC
 #define HWC_Logic(name)                                                        \
   unsigned int name##_state = 0;                                               \
