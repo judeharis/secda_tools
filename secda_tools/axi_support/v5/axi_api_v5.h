@@ -41,7 +41,10 @@ using namespace std;
 #define S2MM_DESTINATION_ADDRESS 0x48
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
+
+#ifdef DEF_UDMA
 #define USE_UBUF
+#endif
 
 // ================================================================================
 // AXI4Lite API
