@@ -42,6 +42,7 @@ using namespace std;
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
 
+// #define DEF_UDMA
 #ifdef DEF_UDMA
 #define USE_UBUF
 #endif

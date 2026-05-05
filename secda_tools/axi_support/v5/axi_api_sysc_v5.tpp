@@ -572,8 +572,17 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _buffer_size) {
-  multi_dma(_dma_count, _dma_addrs, _dma_addrs_in, _dma_addrs_out, _buffer_size,
-            _buffer_size, false);
+  dma_count = _dma_count;
+  dmas = new stream_dma<B, T>[dma_count];
+  dma_addrs = _dma_addrs;
+  dma_addrs_in = _dma_addrs_in;
+  dma_addrs_out = _dma_addrs_out;
+  in_buffer_size = _buffer_size;
+  out_buffer_size = _buffer_size;
+
+  for (int i = 0; i < dma_count; i++)
+    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
+                     dma_addrs_out[i], out_buffer_size * 1, false);
 }
 
 template <int B, int T>
