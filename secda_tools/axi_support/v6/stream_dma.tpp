@@ -76,31 +76,47 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
   } else {
 
 #ifdef KRIA
-    cerr << "KRIA ALLOC NO SG" << endl;
-    // input = mm_alloc_rw<int>(_input, _input_size);
-    // output = mm_alloc_r<int>(_output, _output_size);
-    // input_size = _input_size;
-    // output_size = _output_size;
-    // input_addr = _input;
-    // output_addr = _output;
 
+#ifdef USE_UBUF
+    cerr << "UBUF ALLOC" << endl;
     ubuf_id_in = ubuf_id++;
     ubuf_id_out = ubuf_id++;
-    input = ubuf_mm_alloc_rw<int>(_input, _input_size, ubuf_id_in);
-    output = ubuf_mm_alloc_rw<int>(_output, _output_size, ubuf_id_out);
+    input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
+    output = ubuf_mm_alloc_rw<int>(_output_size, ubuf_id_out);
     input_size = _input_size;
     output_size = _output_size;
-    input_addr = ubuf_get_phy_addr(ubuf_id_in);
-    output_addr = ubuf_get_phy_addr(ubuf_id_out);
+    input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
+    output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
+#else
+    cerr << "RAW ALLOC" << endl;
+    input = mm_alloc_rw<int>(_input, _input_size);
+    output = mm_alloc_r<int>(_output, _output_size);
+    input_size = _input_size;
+    output_size = _output_size;
+    input_addr = _input;
+    output_addr = _output;
+#endif
 
 #else
-    cout << "CMA ALLOC NO SG" << endl;
+
+#ifdef USE_CMA
+    cerr << "CMA ALLOC" << endl;
     input = cmap_alloc_rw<int>(_input_size);
     output = cmap_alloc_rw<int>(_output_size);
     int *input_buf = reinterpret_cast<int *>(input);
     int *output_buf = reinterpret_cast<int *>(output);
     input_addr = cma_get_phy_addr(input_buf);
     output_addr = cma_get_phy_addr(output_buf);
+#else
+    cerr << "RAW ALLOC" << endl;
+    input = mm_alloc_rw<int>(_input, _input_size);
+    output = mm_alloc_r<int>(_output, _output_size);
+    input_size = _input_size;
+    output_size = _output_size;
+    input_addr = _input;
+    output_addr = _output;
+#endif
+
 #endif
     initDMA(input_addr, output_addr);
     cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
@@ -157,18 +173,6 @@ template <int B, int T>
 void stream_dma<B, T>::dma_change_end(int offset) {
   writeMappedReg(S2MM_DESTINATION_ADDRESS, output_addr + offset);
 }
-
-// template <int B, int T>
-// void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {
-//   writeMappedReg(S2MM_CONTROL_REGISTER, 4);
-//   writeMappedReg(MM2S_CONTROL_REGISTER, 4);
-//   writeMappedReg(S2MM_CONTROL_REGISTER, 0);
-//   writeMappedReg(MM2S_CONTROL_REGISTER, 0);
-//   writeMappedReg(S2MM_DESTINATION_ADDRESS, dst);
-//   writeMappedReg(MM2S_START_ADDRESS, src);
-//   writeMappedReg(S2MM_CONTROL_REGISTER, 0xf001);
-//   writeMappedReg(MM2S_CONTROL_REGISTER, 0xf001);
-// }
 
 template <int B, int T>
 void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst,

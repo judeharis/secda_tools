@@ -46,12 +46,6 @@ unsigned int acc_regmap<T>::readToControlReg(string reg_name) {
 }
 
 // ================================================================================
-// Memory Map API
-// ================================================================================
-
-// Make this into a struct based API
-
-// ================================================================================
 // AXIMM API
 // ================================================================================
 template <typename T>
@@ -200,6 +194,11 @@ hwc_ctrl<T>::hwc_ctrl(){};
 template <typename T>
 void hwc_ctrl<T>::init_hwc(int count) {
   hwc_count = count;
+  hwc_current_target_states.resize(count, 0);
+  hwc_states_profile.resize(count);
+  for (int i = 0; i < count; i++) {
+    hwc_states_profile[i].resize(HWC_STATES_COUNT, 0);
+  }
 }
 
 template <typename T>
@@ -216,6 +215,7 @@ void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
     return;
   }
   write_reg(0x1C + (hwc * 0x18), target_state);
+  hwc_current_target_states[hwc] = target_state;
 }
 
 template <typename T>
@@ -292,7 +292,6 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
 
 #ifdef USE_UBUF
     cerr << "UBUF ALLOC" << endl;
-
     ubuf_id_in = ubuf_id++;
     ubuf_id_out = ubuf_id++;
     input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
@@ -312,14 +311,16 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
 #endif
 
 #else
-    // cout << "CMA ALLOC" << endl;
-    // input = cmap_alloc_rw<int>(_input_size);
-    // output = cmap_alloc_rw<int>(_output_size);
-    // int *input_buf = reinterpret_cast<int *>(input);
-    // int *output_buf = reinterpret_cast<int *>(output);
-    // input_addr = cma_get_phy_addr(input_buf);
-    // output_addr = cma_get_phy_addr(output_buf);
 
+#ifdef USE_CMA
+    cerr << "CMA ALLOC" << endl;
+    input = cmap_alloc_rw<int>(_input_size);
+    output = cmap_alloc_rw<int>(_output_size);
+    int *input_buf = reinterpret_cast<int *>(input);
+    int *output_buf = reinterpret_cast<int *>(output);
+    input_addr = cma_get_phy_addr(input_buf);
+    output_addr = cma_get_phy_addr(output_buf);
+#else
     cerr << "RAW ALLOC" << endl;
     input = mm_alloc_rw<int>(_input, _input_size);
     output = mm_alloc_r<int>(_output, _output_size);
@@ -327,6 +328,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
     output_size = _output_size;
     input_addr = _input;
     output_addr = _output;
+#endif
 
 #endif
     initDMA(input_addr, output_addr);
@@ -420,11 +422,6 @@ template <int B, int T>
 int *stream_dma<B, T>::dma_get_inbuffer() {
   return input;
 }
-
-// template <int B, int T>
-// vector<cma_buffer> stream_dma<B, T>::dma_get_inbuffers() {
-//   return input_bufs;
-// }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_outbuffer() {
@@ -569,86 +566,6 @@ void stream_dma<B, T>::print_times() {
 }
 
 // ================================================================================
-
-template <int B, int T>
-int stream_dma<B, T>::dma_alloc_input_buffer(int buffer_size) {
-  void *input = cmap_alloc_rw<void *>(buffer_size);
-  unsigned int phy_addr = cma_get_phy_addr(input);
-  if (input == NULL) {
-    cerr << "Failed to allocate DMA Buffer" << endl;
-    return -1;
-  }
-  // std::stringstream ss;
-  // ss << std::hex << phy_addr;
-  // std::string res();
-  // cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
-  //  << " at address " << ss.str() << endl;
-
-  // cout << "Allocated DMA Buffer " << cma_id << " with size " << buffer_size
-  //      << " at address " << HEX(phy_addr) << endl;
-
-  input_bufs_id.push_back(cma_id);
-  input_bufs_ptrs.push_back(input);
-  input_bufs_phy_addr.push_back(phy_addr);
-  input_bufs_size.push_back(buffer_size);
-  input_bufs_allocated_size += buffer_size;
-  return cma_id++;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_dealloc_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      cma_free(input_bufs_ptrs[i]);
-      input_bufs_allocated_size -= input_bufs_size[i];
-      input_bufs_id.erase(input_bufs_id.begin() + i);
-      input_bufs_ptrs.erase(input_bufs_ptrs.begin() + i);
-      input_bufs_phy_addr.erase(input_bufs_phy_addr.begin() + i);
-      input_bufs_size.erase(input_bufs_size.begin() + i);
-      break;
-    }
-  }
-}
-
-template <int B, int T>
-int *stream_dma<B, T>::dma_get_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      return (int *)input_bufs_ptrs[i];
-    }
-  }
-  cout << "Input buffer not found" << endl;
-  return NULL;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_change_input_buffer(int id, int offset) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      // unsigned phy_addr = input_bufs_phy_addr[i];
-      unsigned phy_addr = cma_get_phy_addr(input_bufs_ptrs[i]);
-      dma_change_start(phy_addr, offset);
-    }
-  }
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_default_input_buffer() {
-  dma_change_start(0);
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_send_buffer(int id, int length, int offset) {
-  dma_change_input_buffer(id, offset);
-  dma_start_send(length);
-}
-
-template <int B, int T>
-unsigned int stream_dma<B, T>::dma_pages_available() {
-  return cma_pages_available();
-}
-
-// ================================================================================
 // Multi Stream DMA API
 // ================================================================================
 
@@ -657,8 +574,17 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
                            unsigned int *_dma_addrs_in,
                            unsigned int *_dma_addrs_out,
                            unsigned int _buffer_size) {
-  multi_dma(_dma_count, _dma_addrs, _dma_addrs_in, _dma_addrs_out, _buffer_size,
-            _buffer_size, false);
+  dma_count = _dma_count;
+  dmas = new stream_dma<B, T>[dma_count];
+  dma_addrs = _dma_addrs;
+  dma_addrs_in = _dma_addrs_in;
+  dma_addrs_out = _dma_addrs_out;
+  in_buffer_size = _buffer_size;
+  out_buffer_size = _buffer_size;
+
+  for (int i = 0; i < dma_count; i++)
+    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
+                     dma_addrs_out[i], out_buffer_size * 1, false);
 }
 
 template <int B, int T>
