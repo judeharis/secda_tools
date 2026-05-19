@@ -36,10 +36,54 @@ unsigned int acc_regmap<T>::readToControlReg(string reg_name) {
 }
 
 // ================================================================================
-// Memory Map API
+// AXIMM API
 // ================================================================================
+template <typename T>
+int mm_buffer<T>::mm_id = 0;
+// int mm_id = 0;
 
-// Make this into a struct based API (for SystemC)
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
+    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
+                               std::to_string(_addr) + "_" + name)
+                                  .c_str(),
+                              0, _size - 1) {
+  size = _size;
+  addr = 0;
+  buffer = (T *)malloc(_size * sizeof(T));
+  // Initialize with zeros
+  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
+}
+
+template <typename T>
+mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
+    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
+                               std::to_string(_addr))
+                                  .c_str(),
+                              0, _size - 1) {
+  size = _size;
+  addr = 0;
+  buffer = (T *)malloc(_size * sizeof(T));
+  // Initialize with zeros
+  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
+  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
+}
+
+template <typename T>
+T *mm_buffer<T>::get_buffer() {
+  return buffer;
+}
+
+template <typename T>
+void mm_buffer<T>::sync_from_acc() {
+  buffer_chn.burst_read(0, size, (T *)&buffer[0]);
+}
+
+template <typename T>
+void mm_buffer<T>::sync_to_acc() {
+  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
+}
+
 // ================================================================================
 // ACC Control API
 // ================================================================================
@@ -150,6 +194,11 @@ template <typename T>
 void hwc_ctrl<T>::init_hwc(int count) {
   ctrl = new hwc_signals[count];
   hwc_count = count;
+  hwc_current_target_states.resize(count, 0);
+  hwc_states_profile.resize(count);
+  for (int i = 0; i < count; i++) {
+    hwc_states_profile[i].resize(HWC_STATES_COUNT, 0);
+  }
 }
 
 template <typename T>
@@ -165,6 +214,7 @@ void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
     cerr << "HWC index out of bounds: " << hwc << endl;
   }
   ctrl[hwc].sts.write(target_state);
+  hwc_current_target_states[hwc] = target_state;
 }
 
 template <typename T>
@@ -195,54 +245,6 @@ void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
          << " | Target State: " << curr_target_state << endl;
   }
   cout << "================================================" << endl;
-}
-// ================================================================================
-// AXIMM API
-// ================================================================================
-template <typename T>
-int mm_buffer<T>::mm_id = 0;
-// int mm_id = 0;
-
-template <typename T>
-mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
-    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
-                               std::to_string(_addr) + "_" + name)
-                                  .c_str(),
-                              0, _size - 1) {
-  size = _size;
-  addr = 0;
-  buffer = (T *)malloc(_size * sizeof(T));
-  // Initialize with zeros
-  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
-}
-
-template <typename T>
-mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
-    : id(mm_id++), buffer_chn(("mm_buffer_chn_" + std::to_string(mm_id) + "_" +
-                               std::to_string(_addr))
-                                  .c_str(),
-                              0, _size - 1) {
-  size = _size;
-  addr = 0;
-  buffer = (T *)malloc(_size * sizeof(T));
-  // Initialize with zeros
-  for (unsigned int i = 0; i < _size; i++) *(buffer + i) = 0;
-  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
-}
-
-template <typename T>
-T *mm_buffer<T>::get_buffer() {
-  return buffer;
-}
-
-template <typename T>
-void mm_buffer<T>::sync_from_acc() {
-  buffer_chn.burst_read(0, size, (T *)&buffer[0]);
-}
-
-template <typename T>
-void mm_buffer<T>::sync_to_acc() {
-  buffer_chn.burst_write(0, size, (T *)&buffer[0]);
 }
 
 // ================================================================================
@@ -479,87 +481,6 @@ void stream_dma<B, T>::print_times() {
   // dmad->pattern_csv();
   cerr << "================================================" << endl;
 #endif
-}
-
-template <int B, int T>
-int stream_dma<B, T>::dma_alloc_input_buffer(int buffer_size) {
-  int size = buffer_size / 4;
-
-  void *new_input = malloc(buffer_size * sizeof(int));
-  if (new_input == NULL) {
-    cerr << "Failed to allocate input buffer" << endl;
-    return -1;
-  }
-  input_bufs_id.push_back(cma_id);
-  input_bufs_ptrs.push_back(new_input);
-  input_bufs_phy_addr.push_back(0);
-  input_bufs_size.push_back(buffer_size);
-  input_bufs_allocated_size += buffer_size;
-  return cma_id++;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_dealloc_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      free(input_bufs_ptrs[i]);
-      input_bufs_allocated_size -= input_bufs_size[i];
-      input_bufs_id.erase(input_bufs_id.begin() + i);
-      input_bufs_ptrs.erase(input_bufs_ptrs.begin() + i);
-      input_bufs_phy_addr.erase(input_bufs_phy_addr.begin() + i);
-      input_bufs_size.erase(input_bufs_size.begin() + i);
-      break;
-    }
-  }
-}
-
-template <int B, int T>
-int *stream_dma<B, T>::dma_get_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      return (int *)input_bufs_ptrs[i];
-    }
-  }
-  cout << "Input buffer not found" << endl;
-  return NULL;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_change_input_buffer(int id, int offset) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = (int *)input_bufs_ptrs[i];
-      break;
-    }
-  }
-  dmad->input_offset = offset / 4;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_default_input_buffer() {
-  dmad->DMA_input_buffer = input;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_send_buffer(int id, int length, int offset) {
-  dmad->input_len = length * (B / 32);
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = input_bufs_ptrs[i];
-      dmad->input_offset = offset / 4;
-      break;
-    }
-  }
-  dmad->send = true;
-#ifdef ACC_PROFILE
-  data_transfered += length * (B / 8);
-  data_send_count++;
-#endif
-}
-
-template <int B, int T>
-unsigned int stream_dma<B, T>::dma_pages_available() {
-  return 0;
 }
 
 // ================================================================================

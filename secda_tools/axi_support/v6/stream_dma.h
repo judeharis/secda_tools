@@ -30,6 +30,16 @@ extern "C" {
 #define MAX_DESC 256
 #define DESC_SIZE 64
 
+// #define DEF_UDMA
+#ifdef DEF_UDMA
+#define USE_UBUF
+#endif
+
+// #define DEF_CMA
+#ifdef DEF_CMA
+#define USE_CMA
+#endif
+
 // ================================================================================
 // CMA Buffer API || Public
 // ================================================================================
@@ -130,8 +140,6 @@ struct stream_dma {
   void dma_init(unsigned int _dma_addr, unsigned int _input,
                 unsigned int _input_size, unsigned int _output,
                 unsigned int _output_size, bool _sg_mode = false);
-
-  // void initDMA(unsigned int src, unsigned int dst);
 
   void initDMA(unsigned int src, unsigned int dst, bool sg_mode = false);
 

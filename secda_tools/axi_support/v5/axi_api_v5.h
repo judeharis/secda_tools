@@ -42,9 +42,14 @@ using namespace std;
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
 
-// #define DEF_UDMA
+#define DEF_UDMA
 #ifdef DEF_UDMA
 #define USE_UBUF
+#endif
+
+// #define DEF_CMA
+#ifdef DEF_CMA
+#define USE_CMA
 #endif
 
 // ================================================================================
@@ -87,33 +92,6 @@ char getReg(int *acc, uint32_t offset) {
       (volatile unsigned char *)(reinterpret_cast<char *>(base_addr) + offset));
 }
 
-template <typename T>
-struct acc_regmap {
-  int *acc_addr;
-
-  uint32_t *control_registers_offset;
-  uint32_t *status_registers_offset;
-
-  string *control_registers;
-  string *status_registers;
-
-  acc_regmap(size_t base_addr, size_t length);
-
-  void writeAccReg(uint32_t offset, unsigned int val);
-
-  unsigned int readAccReg(uint32_t offset);
-
-  // TODO: parse JSON file to load offset map for control and status registers
-  void parseOffsetJSON();
-
-  // TODO: checks control and status register arrays to find the offsets for the
-  // register
-  uint32_t findRegOffset(string reg_name);
-
-  void writeToControlReg(string reg_name, unsigned int val);
-
-  unsigned int readToControlReg(string reg_name);
-};
 // ================================================================================
 // Memory Map API
 // ================================================================================
@@ -251,10 +229,13 @@ vector<T> multi_mm_alloc_rw(unsigned int address, unsigned int size_needed) {
   return accs;
 }
 
+// ================================================================================
+// CMA API
+// ================================================================================
+
 #ifndef SYSC
 template <typename T>
 T *cmap_alloc_rw(unsigned int buffer_size) {
-  // T *acc = reinterpret_cast<T *>(cma_alloc(buffer_size, 1));
   void *buf = cma_alloc(buffer_size, 0);
   if (buf == NULL) {
     cerr << "Failed to allocate CMA Buffer" << endl;
@@ -272,17 +253,39 @@ T *cmap_map_rw(unsigned int address, unsigned int buffer_size) {
   T *acc = reinterpret_cast<T *>(cma_mmap(virt_base, buffer_size));
   return acc;
 }
-
-// template <typename T>
-// T *cmap_alloc_rw(unsigned int buffer_size) {
-//   T *acc = reinterpret_cast<T *>(cma_alloc(buffer_size, 1));
-//   cout << acc << endl;
-//   T *mmaped = cmap_map_rw<T>(cma_get_phy_addr(acc), buffer_size);
-//   cout << mmaped << endl;
-//   return mmaped;
-// }
-
 #endif
+
+// ================================================================================
+// ACC Register Map API
+// ================================================================================
+
+template <typename T>
+struct acc_regmap {
+  int *acc_addr;
+
+  uint32_t *control_registers_offset;
+  uint32_t *status_registers_offset;
+
+  string *control_registers;
+  string *status_registers;
+
+  acc_regmap(size_t base_addr, size_t length);
+
+  void writeAccReg(uint32_t offset, unsigned int val);
+
+  unsigned int readAccReg(uint32_t offset);
+
+  // TODO: parse JSON file to load offset map for control and status registers
+  void parseOffsetJSON();
+
+  // TODO: checks control and status register arrays to find the offsets for the
+  // register
+  uint32_t findRegOffset(string reg_name);
+
+  void writeToControlReg(string reg_name, unsigned int val);
+
+  unsigned int readToControlReg(string reg_name);
+};
 
 // ================================================================================
 // ACC Control API
@@ -339,7 +342,10 @@ struct hwc_ctrl : public axi4lite_ctrl<T> {
   hwc_signals *ctrl;
   sc_signal<bool> reset;
 #endif
+  static const int HWC_STATES_COUNT = 3;
   int hwc_count;
+  vector<unsigned int> hwc_current_target_states;
+  vector<vector<unsigned int>> hwc_states_profile;
 
   hwc_ctrl();
 
@@ -354,6 +360,39 @@ struct hwc_ctrl : public axi4lite_ctrl<T> {
   unsigned int get_cycle_count(int hwc);
 
   void print_hwc_map(bool clear_console);
+
+  void update_profile() {
+    for (int i = 0; i < hwc_count; i++) {
+      hwc_states_profile[i][hwc_current_target_states[i]] = get_cycle_count(i);
+    }
+  }
+
+  void print_profile() {
+    cout << "================================================" << endl;
+    cout << "HWC State Profiles" << endl;
+    cout << "-----------------------------------------------" << endl;
+    for (int i = 0; i < hwc_count; i++) {
+      cout << "HWC[" << i << "]" << endl;
+
+      for (int j = 0; j < HWC_STATES_COUNT; j++) {
+        cout << "  State " << j << ": " << hwc_states_profile[i][j] << " cycles"
+             << endl;
+      }
+      cout << "-----------------------------------------------" << endl;
+    }
+    cout << "================================================" << endl;
+  }
+
+  void save_profile_csv() {
+    ofstream file("hwc_profile.csv");
+    file << "HWC,State,Cycles\n";
+    for (int i = 0; i < hwc_count; i++) {
+      for (int j = 0; j < HWC_STATES_COUNT; j++) {
+        file << i << "," << j << "," << hwc_states_profile[i][j] << "\n";
+      }
+    }
+    file.close();
+  }
 
 private:
   using axi4lite_ctrl<T>::reg_base;
@@ -392,55 +431,9 @@ struct mm_buffer {
   void sync_to_acc();
 };
 
-// template <typename T>
-// struct multi_mm_buffer {
-//   vector<mm_buffer<T>> *mm_bufs;
-//   unsigned int *addrs;
-//   unsigned int *sizes;
-//   int mm_buf_count;
-
-//   multi_mm_buffer(unsigned int _addr, unsigned int _size);
-
-//   mm_buffer<int> *get_buffer(int id);
-
-//   void sync_from_acc();
-
-//   void sync_to_acc();
-// };
-
 // ================================================================================
 // Stream DMA API
 // ================================================================================
-struct cma_buffer {
-  void *data;
-  int id;
-  int size;
-  unsigned int phy_addr;
-
-  cma_buffer(void *_data, int _id, int _size)
-      : data(_data), id(_id), size(_size) {}
-
-  cma_buffer(void *_data, int _id, int _size, unsigned int _phy_addr)
-      : data(_data), id(_id), size(_size), phy_addr(_phy_addr) {}
-
-  cma_buffer() {
-    data = NULL;
-    id = -1;
-    size = 0;
-  }
-
-#ifndef SYSC
-  ~cma_buffer() { cma_free(data); }
-#else
-  ~cma_buffer() { free(data); }
-#endif
-
-#ifndef SYSC
-  void dealloc() { cma_free(data); }
-#else
-  void dealloc() { free(data); }
-#endif
-};
 
 template <int B, int T>
 struct stream_dma {
@@ -450,15 +443,6 @@ struct stream_dma {
   int *input;
   int *output;
 
-  vector<cma_buffer> input_bufs;
-
-  vector<void *> input_bufs_ptrs;
-  vector<unsigned int> input_bufs_phy_addr;
-  vector<unsigned int> input_bufs_size;
-  vector<int> input_bufs_id;
-
-  unsigned int input_bufs_allocated_size = 0;
-
   unsigned int input_size;
   unsigned int output_size;
 
@@ -467,7 +451,6 @@ struct stream_dma {
 
   static int s_id;
   const int id;
-  int cma_id = 0;
 
   int ubuf_id_in = -1;
   int ubuf_id_out = -1;
@@ -533,19 +516,6 @@ struct stream_dma {
 
   void print_times();
 
-  int dma_alloc_input_buffer(int buffer_size);
-
-  void dma_dealloc_input_buffer(int id);
-
-  int *dma_get_input_buffer(int id);
-
-  void dma_change_input_buffer(int id, int offset);
-
-  void dma_default_input_buffer();
-
-  void dma_send_buffer(int id, int length, int offset);
-
-  unsigned int dma_pages_available();
   //********************************** Unexposed Functions
   //**********************************
 
@@ -570,6 +540,10 @@ struct multi_dma {
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
             unsigned int buffer_size);
+
+  multi_dma(int _dma_count, unsigned int *_dma_addrs,
+            unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
+            unsigned int in_buffer_size, unsigned int out_buffer_size);
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
