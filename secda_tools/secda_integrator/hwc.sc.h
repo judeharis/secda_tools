@@ -4,6 +4,9 @@
 #include "secda_hw_utils.sc.h"
 
 static unsigned int HWC_Counter = 0;
+#define HWC_INIT 0
+#define HWC_IDLE 1
+#define HWC_PROCESS 2
 
 #define HWC_Reset sc_in<bool> hwc_reset;
 #define HWC_PragReset                                                          \
@@ -14,22 +17,11 @@ static unsigned int HWC_Counter = 0;
   PRAGMA(HLS resource core = AXI4LiteS metadata = "-bus_bundle hwc" variable = \
              name##_##signame)
 
-// This defines the AXI4LiteS ports for the HWC
-#define HWC_PragGroup(name)                                                    \
-  HWC_AXI4LiteS(name, sts) HWC_AXI4LiteS(name, co) HWC_AXI4LiteS(name, so)
-
 // This defines the sim HWC signals
 #define HWC_Define_Signals(name)                                               \
   sc_signal<unsigned int> sig_##name##_sts;                                    \
   sc_signal<unsigned int> sig_##name##_co;                                     \
   sc_signal<unsigned int> sig_##name##_so;
-
-// This binds the sim HWC signals to the ACC
-#define HWC_Bind_Signals(name)                                                 \
-  acc->name##_sts(hwc->ctrl[HWC_Counter].sts);                                 \
-  acc->name##_co(hwc->ctrl[HWC_Counter].co);                                   \
-  acc->name##_so(hwc->ctrl[HWC_Counter].so);                                   \
-  HWC_Counter++;
 
 #define HWC_Bind_Reset                                                         \
   acc->hwc_reset(hwc->reset);                                                  \
@@ -43,21 +35,27 @@ static unsigned int HWC_Counter = 0;
   sc_out<unsigned int> name##_so;                                              \
   unsigned int name##_cycles;
 
-// This defines CTHREADs which are monitored by the HWC
-#define HWC_CTHREAD(name) HWC_Define(name) void name();
+#ifdef HWC_DISABLE
 
-// This defines CTHREADs which are monitored by the HWC
+#define HWC_SIG(X, VAL)
+#define HWC_Logic(name) hwc_reset.read();
+#define HWC_CTHREAD(name) void name();
 #define HWC_CTHREADSub(name, sig)                                              \
-  HWC_Define(name) void name() {                                               \
+  void name() {                                                                \
     wait();                                                                    \
     while (true) {                                                             \
-      PRAGMA(HLS LATENCY max = 0 min = 0)                                      \
-      PRAGMA(HLS protocol fixed)                                               \
-      int state = sig.read();                                                        \
-      name##_si.write(state);                                             \
       DWAIT();                                                                 \
     }                                                                          \
-  };
+  }
+#define HWC_PragGroup(name)
+#define HWC_MAIN_INIT                                                          \
+  SC_CTHREAD(HW_MAIN, clock);                                                  \
+  reset_signal_is(reset, true);
+#define HWC_Bind_Signals(name)
+
+#else // HWC is enabled
+
+#define HWC_SIG(X, VAL) X##_si.write(VAL);
 
 // This defines the logic for the HWC
 #define HWC_Logic(name)                                                        \
@@ -75,6 +73,39 @@ static unsigned int HWC_Counter = 0;
     name##_co.write(name##_cycles);                                            \
     name##_so.write(name##_state);                                             \
   }
+
+// This defines CTHREADs which are monitored by the HWC
+#define HWC_CTHREAD(name) HWC_Define(name) void name();
+
+// This defines CTHREADs which are monitored by the HWC
+#define HWC_CTHREADSub(name, sig)                                              \
+  HWC_Define(name) void name() {                                               \
+    wait();                                                                    \
+    while (true) {                                                             \
+      PRAGMA(HLS LATENCY max = 0 min = 0)                                      \
+      PRAGMA(HLS protocol fixed)                                               \
+      int state = sig.read();                                                  \
+      name##_si.write(state);                                                  \
+      DWAIT();                                                                 \
+    }                                                                          \
+  };
+
+// This defines the AXI4LiteS ports for the HWC
+#define HWC_PragGroup(name)                                                    \
+  HWC_AXI4LiteS(name, sts) HWC_AXI4LiteS(name, co) HWC_AXI4LiteS(name, so)
+
+// This create the CTHREAD for the HWC MAIN
+#define HWC_MAIN_INIT                                                          \
+  SC_CTHREAD(HW_MAIN, clock);                                                  \
+  reset_signal_is(reset, true);
+
+// This binds the sim HWC signals to the ACC
+#define HWC_Bind_Signals(name)                                                 \
+  acc->name##_sts(hwc->ctrl[HWC_Counter].sts);                                 \
+  acc->name##_co(hwc->ctrl[HWC_Counter].co);                                   \
+  acc->name##_so(hwc->ctrl[HWC_Counter].so);                                   \
+  HWC_Counter++;
+#endif
 
 #endif // HWC_H
 

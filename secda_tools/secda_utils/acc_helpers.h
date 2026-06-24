@@ -34,7 +34,7 @@ struct del_params {
   int start_count;
   int *acc;
 
-  struct MultiThreadContext *mt_context;
+  class MultiThreadContext *mt_context;
   struct times total;
 
   del_params() : total("total") {
@@ -44,7 +44,7 @@ struct del_params {
     layer = 0;
     start_count = 0;
     mt_context = new MultiThreadContext();
-  };
+  }
 };
 
 struct DSR {
@@ -62,20 +62,20 @@ struct DSR {
     sID = 0;
     cID = 0;
     rID = 0;
-  };
+  }
 
   void print(){
       // cout << "dID: " << dID << " sID: " << sID << " cID: " << cID
       //      << " rID: " << rID << endl;
       // cout << dID << "," << sID << "," << cID << "," << rID << endl;
-  };
+  }
 
   string str() {
     return std::to_string(dID) + "," + std::to_string(sID) + "," +
            std::to_string(cID) + "," + std::to_string(rID);
-  };
+  }
 
-  DSR() { reset(); };
+  DSR() { reset(); }
 };
 
 struct dma_buffer {
