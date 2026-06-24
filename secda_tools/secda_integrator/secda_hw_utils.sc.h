@@ -57,7 +57,7 @@
   X.write(VAL);                                                                \
   X##S.write(VAL);
 
-#define HWC_SIG(X, VAL) X##_si.write(VAL);
+// #define HWC_SIG(X, VAL) X##_si.write(VAL);
 // ================================================================
 // Control Unit Macros || Synthesizable and Simulation
 // ================================================================

@@ -539,16 +539,16 @@ struct multi_dma {
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int buffer_size);
+            unsigned int _buffer_size);
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int in_buffer_size, unsigned int out_buffer_size);
+            unsigned int _in_buffer_size, unsigned int _out_buffer_size);
 
   multi_dma(int _dma_count, unsigned int *_dma_addrs,
             unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int in_buffer_size, unsigned int out_buffer_size,
-            bool sg_mode = false);
+            unsigned int _in_buffer_size, unsigned int _out_buffer_size,
+            bool _sg_mode);
 
   void multi_free_dmas();
 
