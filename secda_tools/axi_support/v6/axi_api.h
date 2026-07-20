@@ -1,5 +1,5 @@
-#ifndef AXI_API_V6_H
-#define AXI_API_V6_H
+#ifndef AXI_API_H
+#define AXI_API_H
 
 #ifdef SYSC
 #include "../../secda_integrator/axi4s_engine_generic.sc.h"
@@ -59,6 +59,7 @@ T *ubuf_mm_alloc_rw(unsigned int address, unsigned int buffer_size,
   return acc;
 }
 
+template <typename T>
 unsigned long ubuf_get_phy_addr(int buffer_id) {
   char attr[1024];
   unsigned long phys_addr = 0;
@@ -76,6 +77,7 @@ unsigned long ubuf_get_phy_addr(int buffer_id) {
   return phys_addr;
 }
 
+template <typename T>
 unsigned int ubuf_free(int buffer_id) {
   if (buffer_id < 0 || buffer_id >= 8 || ubuf_alloced[buffer_id] == 0) {
     cerr << "Invalid buffer ID" << endl;
@@ -111,6 +113,13 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
   if (addr == (void *)-1) exit(EXIT_FAILURE);
   T *acc = reinterpret_cast<T *>(addr);
   return acc;
+}
+
+template <typename T>
+void *mm_dealloc(T *buffer, unsigned int buffer_size) {
+  if (munmap(buffer, buffer_size) == -1) {
+    cerr << "Failed to unmap memory" << endl;
+  }
 }
 
 template <typename T>
@@ -164,16 +173,16 @@ char getReg(int *acc, uint32_t offset) {
 #include "mm_buffer.h"
 #include "stream_dma.h"
 
-#ifdef SYSC
-// #include "axi_api_sysc.tpp"
-#include "control_modules_sysc.tpp"
-#include "mm_buffer_sysc.tpp"
-#include "stream_dma_sysc.tpp"
-#else
-// #include "axi_api.tpp"
-#include "control_modules.tpp"
-#include "mm_buffer.tpp"
-#include "stream_dma.tpp"
-#endif
+// #ifdef SYSC
+// // #include "axi_api_sysc.tpp"
+// #include "control_modules_sysc.tpp"
+// #include "mm_buffer_sysc.tpp"
+// #include "stream_dma_sysc.tpp"
+// #else
+// // #include "axi_api.tpp"
+// #include "control_modules.tpp"
+// #include "mm_buffer.tpp"
+// #include "stream_dma.tpp"
+// #endif
 
-#endif // AXI_API_V6_H
+#endif // AXI_API_H

@@ -7,6 +7,8 @@ extern "C" {
 }
 #endif
 
+#include "mm_buffer.h"
+
 #define MM2S_CONTROL_REGISTER 0x00
 #define MM2S_STATUS_REGISTER 0x04
 #define MM2S_CURDESC 0x08
@@ -85,10 +87,14 @@ struct stream_dma {
 
   bool sg_mode = false;
   unsigned int *dma_addr;
+
+  struct mm_buffer<int> *input_buffer;
+  struct mm_buffer<int> *output_buffer;
+
   int *mm2s_bd_addr;
   int *s2mm_bd_addr;
-  int *input;
-  int *output;
+  // int *input;
+  // int *output;
 
   unsigned int input_size;
   unsigned int output_size;
@@ -129,21 +135,21 @@ struct stream_dma {
 #endif
 
   // Constructors and Destructor
-  stream_dma(unsigned int _dma_addr, unsigned int _input,
-             unsigned int _input_size, unsigned int _output,
-             unsigned int _output_size);
+  stream_dma(unsigned int _dma_addr, bool _sg_mode = false);
 
   stream_dma();
 
   ~stream_dma();
 
-  void dma_init(unsigned int _dma_addr, unsigned int _input,
-                unsigned int _input_size, unsigned int _output,
-                unsigned int _output_size, bool _sg_mode = false);
+  void dma_init(unsigned int _dma_addr, bool _sg_mode = false);
 
   void initDMA(unsigned int src, unsigned int dst, bool sg_mode = false);
 
   void dma_free();
+
+  void dma_bind_input_buffer(mm_buffer<int> *input_buffer);
+
+  void dma_bind_output_buffer(mm_buffer<int> *output_buffer);
 
   // Underlying Functions
   void writeMappedReg(uint32_t offset, unsigned int val);
@@ -194,18 +200,11 @@ template <int B, int T>
 struct multi_dma {
   struct stream_dma<B, T> *dmas;
   unsigned int *dma_addrs;
-  unsigned int *dma_addrs_in;
-  unsigned int *dma_addrs_out;
-  unsigned int in_buffer_size;
-  unsigned int out_buffer_size;
   int dma_count;
 
   ~multi_dma();
 
-  multi_dma(int _dma_count, unsigned int *_dma_addrs,
-            unsigned int *_dma_addrs_in, unsigned int *_dma_addrs_out,
-            unsigned int in_buffer_size, unsigned int out_buffer_size,
-            bool sg_mode = false);
+  multi_dma(int _dma_count, unsigned int *_dma_addrs, bool _sg_mode = false);
 
   void multi_free_dmas();
 
@@ -233,5 +232,12 @@ struct multi_dma {
 
   void print_times();
 };
+
+
+#ifdef SYSC
+#include "stream_dma_sysc.tpp"
+#else
+#include "stream_dma.tpp"
+#endif
 
 #endif // STREAM_DMA_V6_H

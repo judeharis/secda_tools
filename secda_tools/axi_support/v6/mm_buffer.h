@@ -22,11 +22,20 @@ struct mm_buffer {
 
   mm_buffer(unsigned int _addr, unsigned int _size);
 
+  ~mm_buffer();
+
   T *get_buffer();
 
   void sync_from_acc();
 
   void sync_to_acc();
 };
+
+
+#ifdef SYSC
+#include "mm_buffer_sysc.tpp"
+#else
+#include "mm_buffer.tpp"
+#endif
 
 #endif // MM_BUFFER_V6_H

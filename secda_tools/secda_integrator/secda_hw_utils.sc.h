@@ -28,7 +28,8 @@
   sc_signal<type, SC_MANY_WRITERS> name##S;                                    \
   sc_out<type> name##SS;
 
-#define INITSIGPORT(X, SID) X((std::string(#X)).c_str())
+// #define INITSIGPORT(X, SID) X((std::string(#X)).c_str())
+#define INITSIGPORT(X, SID) X((std::string(#X) + std::to_string(SID)).c_str())
 #else
 
 // Define macros for synthesis
@@ -41,7 +42,7 @@
   sc_signal<type> name##S;                                                     \
   sc_out<type> name##SS;
 
-#define INITSIGPORT(X, SID) X((std::string(#X) + std::to_string(SID)).c_str())
+#define INITSIGPORT(X, SID) X((std::string(A#X) + std::to_string(SID)).c_str())
 #define PRAGMA(X) _Pragma(#X)
 #endif
 

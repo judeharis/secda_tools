@@ -6,6 +6,7 @@
 template <typename T>
 int mm_buffer<T>::mm_id = 0;
 
+// NEEDS TO SUPPORT CMA ALLOC
 template <typename T>
 mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size, string name)
     : id(mm_id++), name(name) {
@@ -19,6 +20,11 @@ mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size) : id(mm_id++) {
   size = _size;
   addr = _addr / 4; // Convert to 32-bit words
   buffer = mm_alloc_rw<T>(_addr, _size * sizeof(T));
+}
+
+template <typename T>
+mm_buffer<T>::~mm_buffer() {
+  mm_dealloc<T>(buffer, size * sizeof(T));
 }
 
 template <typename T>
