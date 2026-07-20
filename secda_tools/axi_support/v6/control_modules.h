@@ -89,4 +89,11 @@ public:
   using axi4lite_ctrl<T>::axi4lite_ctrl;
 };
 
+
+#ifdef SYSC
+#include "control_modules_sysc.tpp"
+#else
+#include "control_modules.tpp"
+#endif
+
 #endif // CONTROL_MODULES_V6_H

@@ -1,4 +1,5 @@
 #ifdef SYSC
+
 // ================================================================================
 // Stream DMA API
 // ================================================================================
@@ -7,21 +8,16 @@ template <int B, int T>
 int stream_dma<B, T>::s_id = 0;
 
 template <int B, int T>
-stream_dma<B, T>::stream_dma(unsigned int _dma_addr, unsigned int _input,
-                             unsigned int _input_size, unsigned int _output,
-                             unsigned int _output_size)
+stream_dma<B, T>::stream_dma(unsigned int _dma_addr, bool _sg_mode)
     : id(s_id++) {
   string name("SDMA" + to_string(id));
   dmad = new AXIS_ENGINE<B, AXI_TYPE>(&name[0]);
-
   dmad->id = id;
   dmad->input_len = 0;
   dmad->input_offset = 0;
   dmad->output_len = 0;
   dmad->output_offset = 0;
-  dmad->r_paddr = _r_paddr;
-  dmad->w_paddr = _w_paddr;
-  dma_init(_dma_addr, _input, _input_size, _output, _output_size);
+  dma_init(_dma_addr, _sg_mode);
 }
 
 template <int B, int T>
@@ -43,26 +39,27 @@ stream_dma<B, T>::~stream_dma() {
 }
 
 template <int B, int T>
-void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
-                                unsigned int _input_size, unsigned int _output,
-                                unsigned int _output_size) {
-  input = (int *)malloc(_input_size * sizeof(int));
-  output = (int *)malloc(_output_size * sizeof(int));
+void stream_dma<B, T>::dma_init(unsigned int _dma_addr, bool _sg_mode) {
+  // Currently not using _sg_mode, but can be added later if needed
+  // Used to initialize the DMA engine with the given address and mode
+  // SystemC version does not require this initialization, but it is kept for
+  // compatibility with other versions
+}
 
-  // Initialize with zeros
-  for (int64_t i = 0; i < _input_size; i++) {
-    *(input + i) = 0;
-  }
+template <int B, int T>
+void stream_dma<B, T>::dma_bind_input_buffer(
+    mm_buffer<int> *_input_buffer) {
+  input_buffer = _input_buffer;
+  dmad->DMA_input_buffer = (int *)input_buffer->buffer;
+  input_size = input_buffer->size;
+}
 
-  for (int64_t i = 0; i < _output_size; i++) {
-    *(output + i) = 0;
-  }
-  input_size = _input_size;
-  output_size = _output_size;
-  dmad->DMA_input_buffer = (int *)input;
-  dmad->DMA_output_buffer = (int *)output;
-  dmad->r_paddr = _input;
-  dmad->w_paddr = _output;
+template <int B, int T>
+void stream_dma<B, T>::dma_bind_output_buffer(
+    mm_buffer<int> *_output_buffer) {
+  output_buffer = _output_buffer;
+  dmad->DMA_output_buffer = (int *)output_buffer->buffer;
+  output_size = output_buffer->size;
 }
 
 template <int B, int T>
@@ -88,13 +85,11 @@ void stream_dma<B, T>::dma_s2mm_sync() {
 
 template <int B, int T>
 void stream_dma<B, T>::dma_change_start(int offset) {
-  dmad->DMA_input_buffer = input;
   dmad->input_offset = offset / 4;
 }
 
 template <int B, int T>
 void stream_dma<B, T>::dma_change_start(unsigned int addr, int offset) {
-  dmad->DMA_input_buffer = input;
   dmad->input_offset = offset / 4;
 }
 
@@ -104,22 +99,20 @@ void stream_dma<B, T>::dma_change_end(int offset) {
 }
 
 template <int B, int T>
-void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {}
+void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst,
+                               bool sg_mode) {}
 
 template <int B, int T>
-void stream_dma<B, T>::dma_free() {
-  free(input);
-  free(output);
-}
+void stream_dma<B, T>::dma_free() {}
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_inbuffer() {
-  return input;
+  return (int *)input_buffer->buffer;
 }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_outbuffer() {
-  return output;
+  return (int *)output_buffer->buffer;
 }
 
 template <int B, int T>
@@ -199,125 +192,16 @@ void stream_dma<B, T>::print_times() {
 #endif
 }
 
-template <int B, int T>
-int stream_dma<B, T>::dma_alloc_input_buffer(int buffer_size) {
-  int size = buffer_size / 4;
-
-  void *new_input = malloc(buffer_size * sizeof(int));
-  if (new_input == NULL) {
-    cerr << "Failed to allocate input buffer" << endl;
-    return -1;
-  }
-  input_bufs_id.push_back(cma_id);
-  input_bufs_ptrs.push_back(new_input);
-  input_bufs_phy_addr.push_back(0);
-  input_bufs_size.push_back(buffer_size);
-  input_bufs_allocated_size += buffer_size;
-  return cma_id++;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_dealloc_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      free(input_bufs_ptrs[i]);
-      input_bufs_allocated_size -= input_bufs_size[i];
-      input_bufs_id.erase(input_bufs_id.begin() + i);
-      input_bufs_ptrs.erase(input_bufs_ptrs.begin() + i);
-      input_bufs_phy_addr.erase(input_bufs_phy_addr.begin() + i);
-      input_bufs_size.erase(input_bufs_size.begin() + i);
-      break;
-    }
-  }
-}
-
-template <int B, int T>
-int *stream_dma<B, T>::dma_get_input_buffer(int id) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      return (int *)input_bufs_ptrs[i];
-    }
-  }
-  cout << "Input buffer not found" << endl;
-  return NULL;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_change_input_buffer(int id, int offset) {
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = (int *)input_bufs_ptrs[i];
-      break;
-    }
-  }
-  dmad->input_offset = offset / 4;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_default_input_buffer() {
-  dmad->DMA_input_buffer = input;
-}
-
-template <int B, int T>
-void stream_dma<B, T>::dma_send_buffer(int id, int length, int offset) {
-  dmad->input_len = length * (B / 32);
-  for (int i = 0; i < input_bufs_id.size(); i++) {
-    if (input_bufs_id[i] == id) {
-      dmad->DMA_input_buffer = input_bufs_ptrs[i];
-      dmad->input_offset = offset / 4;
-      break;
-    }
-  }
-  dmad->send = true;
-#ifdef ACC_PROFILE
-  data_transfered += length * (B / 8);
-  data_send_count++;
-#endif
-}
-
-template <int B, int T>
-unsigned int stream_dma<B, T>::dma_pages_available() {
-  return 0;
-}
-
 // ================================================================================
 // Multi Stream DMA API
 // ================================================================================
 template <int B, int T>
 multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
-                           unsigned int *_dma_addrs_in,
-                           unsigned int *_dma_addrs_out,
-                           unsigned int _buffer_size) {
+                           bool _sg_mode) {
   dma_count = _dma_count;
   dmas = new stream_dma<B, T>[dma_count];
   dma_addrs = _dma_addrs;
-  dma_addrs_in = _dma_addrs_in;
-  dma_addrs_out = _dma_addrs_out;
-  in_buffer_size = _buffer_size;
-  out_buffer_size = _buffer_size;
-
-  for (int i = 0; i < dma_count; i++)
-    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1);
-}
-
-template <int B, int T>
-multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
-                           unsigned int *_dma_addrs_in,
-                           unsigned int *_dma_addrs_out,
-                           unsigned int _in_buffer_size,
-                           unsigned int _out_buffer_size) {
-  dma_count = _dma_count;
-  dmas = new stream_dma<B, T>[dma_count];
-  dma_addrs = _dma_addrs;
-  dma_addrs_in = _dma_addrs_in;
-  dma_addrs_out = _dma_addrs_out;
-  in_buffer_size = _in_buffer_size;
-  out_buffer_size = _out_buffer_size;
-
-  for (int i = 0; i < dma_count; i++)
-    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1);
+  for (int i = 0; i < dma_count; i++) dmas[i].dma_init(dma_addrs[i], _sg_mode);
 }
 
 template <int B, int T>
@@ -327,9 +211,7 @@ multi_dma<B, T>::~multi_dma() {
 
 template <int B, int T>
 void multi_dma<B, T>::multi_free_dmas() {
-  for (int i = 0; i < dma_count; i++) {
-    dmas[i].dma_free();
-  }
+  for (int i = 0; i < dma_count; i++) dmas[i].dma_free();
 }
 
 template <int B, int T>

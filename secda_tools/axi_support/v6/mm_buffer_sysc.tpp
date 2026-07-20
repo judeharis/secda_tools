@@ -35,6 +35,11 @@ mm_buffer<T>::mm_buffer(unsigned int _addr, unsigned int _size)
 }
 
 template <typename T>
+mm_buffer<T>::~mm_buffer() {
+  free(buffer);
+}
+
+template <typename T>
 T *mm_buffer<T>::get_buffer() {
   return buffer;
 }

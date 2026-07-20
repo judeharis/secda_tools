@@ -19,6 +19,15 @@ SC_MODULE(AXIS_ENGINE) {
   int r_paddr = 0;
   int w_paddr = 0;
 
+  int *DMA_input_buffer;
+  int *DMA_output_buffer;
+
+  int input_len;
+  int input_offset;
+
+  int output_len;
+  int output_offset;
+
   void DMA_MMS2() {
     int initial_free = din1.num_free();
     while (1) {
@@ -80,15 +89,6 @@ SC_MODULE(AXIS_ENGINE) {
     SC_CTHREAD(DMA_S2MM, clock.pos());
     reset_signal_is(reset, true);
   }
-
-  int *DMA_input_buffer;
-  int *DMA_output_buffer;
-
-  int input_len;
-  int input_offset;
-
-  int output_len;
-  int output_offset;
 };
 
 #endif
