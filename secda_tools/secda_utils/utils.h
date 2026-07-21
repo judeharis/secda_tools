@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <assert.h>
 
 using namespace std;
 
@@ -318,6 +319,7 @@ int roundUp(int numToRound, int multiple) {
 }
 
 int roundDown(int numToRound, int multiple) {
+  assert(multiple != 0);
   return numToRound - (numToRound % multiple);
 }
 
