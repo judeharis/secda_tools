@@ -49,9 +49,21 @@ set(CMAKE_CXX_STANDARD 17)
 
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 project(secda_tools)
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMakeModules" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules" ${CMAKE_MODULE_PATH})
 
-find_package(SYSC REQUIRED)
+if (NOT DEFINED SECDA_TOOLS_BUILD_SHARED)
+    option(SECDA_TOOLS_BUILD_SHARED "Build secda_tools frontend libraries as shared objects" OFF)
+endif()
+
+if (NOT DEFINED SECDA_TOOLS_BUILD_TESTS)
+    option(SECDA_TOOLS_BUILD_TESTS "Build secda_tools tests" ON)
+endif()
+
+if (NOT BUILD_ARM)
+    find_package(SYSC REQUIRED)
+endif()
 
 add_subdirectory(secda_tools)
-add_subdirectory(tests)
+if (SECDA_TOOLS_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
