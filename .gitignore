@@ -7,3 +7,4 @@ secda_tools/axi_support/arch64/libxrt_coreutil.so
 secda_tools/axi_support/v5_old_2
 secda_tools/axi_support/v6_old
 build.zip
+MODULE.bazel.lock
