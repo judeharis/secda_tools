@@ -119,7 +119,7 @@ template <int B, int T>
 void stream_dma<B, T>::dma_start_send(int length) {
   dmad->input_len = length * (B / 32);
   dmad->send = true;
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered += length * (B / 8);
   data_send_count++;
 #endif
@@ -148,7 +148,7 @@ void stream_dma<B, T>::dma_wait_recv() {
   prf_start(0);
   if (dmad->recv) dma_s2mm_sync();
   prf_end(0, recv_wait);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered_recv += dmad->output_len * (B / 8);
   data_recv_count++;
 #endif
@@ -161,7 +161,7 @@ int stream_dma<B, T>::dma_check_recv() {
 
 template <int B, int T>
 void stream_dma<B, T>::print_times() {
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   cerr << "================================================" << endl;
   cerr << "-----------"
        << "DMA: " << id << "-----------" << endl;

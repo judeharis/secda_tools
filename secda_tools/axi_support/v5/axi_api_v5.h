@@ -42,7 +42,7 @@ using namespace std;
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
 
-#define DMA_PRINT
+// #define DMA_PRINT
 #ifdef DMA_PRINT
 #define DMA_COUT std::cout
 #define DMA_CERR std::cerr
