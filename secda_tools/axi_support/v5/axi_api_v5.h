@@ -42,7 +42,28 @@ using namespace std;
 #define S2MM_LENGTH 0x58
 #define PAGE_SIZE getpagesize()
 
-#define DEF_UDMA
+#define DMA_PRINT
+#ifdef DMA_PRINT
+#define DMA_COUT std::cout
+#define DMA_CERR std::cerr
+#else
+#define DMA_COUT                                                               \
+  if (false) std::cout
+#define DMA_CERR                                                               \
+  if (false) std::cerr
+#endif
+
+#ifdef DMA_PROFILE
+#define DMA_PCOUT std::cout
+#define DMA_PCERR std::cerr
+#else
+#define DMA_PCOUT                                                              \
+  if (false) std::cout
+#define DMA_PCERR                                                              \
+  if (false) std::cerr
+#endif
+
+// #define DEF_UDMA
 #ifdef DEF_UDMA
 #define USE_UBUF
 #endif
@@ -105,8 +126,8 @@ T *mm_alloc_rw(unsigned int address, unsigned int buffer_size) {
                     MAP_SHARED, fd, virt_base);
   close(fd);
   if (addr == (void *)-1) {
-    cerr << "Failed to mmap address: " << HEX(address)
-         << " with buffer size: " << buffer_size << endl;
+    DMA_CERR << "Failed to mmap address: " << HEX(address)
+             << " with buffer size: " << buffer_size << endl;
     exit(EXIT_FAILURE);
   }
   T *acc = reinterpret_cast<T *>(addr);
@@ -122,8 +143,8 @@ T *mm_alloc_r(unsigned int address, unsigned int buffer_size) {
                     virt_base);
   close(fd);
   if (addr == (void *)-1) {
-    cerr << "Failed to mmap address: " << HEX(address)
-         << " with buffer size: " << buffer_size << endl;
+    DMA_CERR << "Failed to mmap address: " << HEX(address)
+             << " with buffer size: " << buffer_size << endl;
     exit(EXIT_FAILURE);
   }
   T *acc = reinterpret_cast<T *>(addr);
@@ -153,7 +174,7 @@ T ubuf_get_phy_addr(int buffer_id) {
 template <typename T>
 T ubuf_free(int buffer_id) {
   if (buffer_id < 0 || buffer_id >= 8 || ubuf_alloced[buffer_id] == 0) {
-    cerr << "Invalid buffer ID" << endl;
+    DMA_CERR << "Invalid buffer ID" << endl;
     return -1;
   }
   string cmd =
@@ -169,15 +190,15 @@ T *ubuf_mm_alloc_rw(unsigned int buffer_size, int buffer_id) {
   ubuf_alloced[buffer_id] = buffer_size;
   string delcmd =
       "echo 'delete udmabuf" + to_string(buffer_id) + "' > /dev/u-dma-buf-mgr";
-  // cerr << cmd << endl;
+  // DMA_CERR << cmd << endl;
   int ret = system(cmd.c_str());
   if (ret != 0) {
-    cerr << "Failed to create udmabuf" << buffer_id << " of size "
-         << buffer_size << endl;
+    DMA_CERR << "Failed to create udmabuf" << buffer_id << " of size "
+             << buffer_size << endl;
     exit(EXIT_FAILURE);
   } else {
-    // cerr << cmd << endl;
-    // cerr << delcmd << endl;
+    // DMA_CERR << cmd << endl;
+    // DMA_CERR << delcmd << endl;
   }
 
   unsigned long phys_addr = ubuf_get_phy_addr<unsigned long>(buffer_id);
@@ -190,7 +211,7 @@ T *ubuf_mm_alloc_rw(unsigned int buffer_size, int buffer_id) {
   // void *addr = mmap(NULL, buffer_size, PROT_READ, MAP_SHARED, fd, 0);
   // close(fd);
   // if (addr == (void *)-1) {
-  //   cerr << "Failed to mmap address: " << HEX(phys_addr)
+  //   DMA_CERR << "Failed to mmap address: " << HEX(phys_addr)
   //        << " with buffer size: " << buffer_size << endl;
   //   exit(EXIT_FAILURE);
   // }
@@ -238,7 +259,7 @@ template <typename T>
 T *cmap_alloc_rw(unsigned int buffer_size) {
   void *buf = cma_alloc(buffer_size, 0);
   if (buf == NULL) {
-    cerr << "Failed to allocate CMA Buffer" << endl;
+    DMA_CERR << "Failed to allocate CMA Buffer" << endl;
     exit(EXIT_FAILURE);
     return NULL;
   }
@@ -368,19 +389,19 @@ struct hwc_ctrl : public axi4lite_ctrl<T> {
   }
 
   void print_profile() {
-    cout << "================================================" << endl;
-    cout << "HWC State Profiles" << endl;
-    cout << "-----------------------------------------------" << endl;
+    DMA_COUT << "================================================" << endl;
+    DMA_COUT << "HWC State Profiles" << endl;
+    DMA_COUT << "-----------------------------------------------" << endl;
     for (int i = 0; i < hwc_count; i++) {
-      cout << "HWC[" << i << "]" << endl;
+      DMA_COUT << "HWC[" << i << "]" << endl;
 
       for (int j = 0; j < HWC_STATES_COUNT; j++) {
-        cout << "  State " << j << ": " << hwc_states_profile[i][j] << " cycles"
-             << endl;
+        DMA_COUT << "  State " << j << ": " << hwc_states_profile[i][j]
+                 << " cycles" << endl;
       }
-      cout << "-----------------------------------------------" << endl;
+      DMA_COUT << "-----------------------------------------------" << endl;
     }
-    cout << "================================================" << endl;
+    DMA_COUT << "================================================" << endl;
   }
 
   void save_profile_csv() {

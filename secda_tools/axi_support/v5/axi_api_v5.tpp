@@ -149,7 +149,7 @@ bool acc_ctrl<T>::check_done() {
 template <typename T>
 unsigned int acc_ctrl<T>::get_reg(int reg) {
   if (reg < 0 || reg >= sig_count) {
-    cerr << "Getting Invalid Signal Address" << endl;
+    DMA_CERR << "Getting Invalid Signal Address" << endl;
     return 0;
   }
   msync(reg_base, PAGE_SIZE, MS_SYNC);
@@ -160,11 +160,11 @@ unsigned int acc_ctrl<T>::get_reg(int reg) {
 template <typename T>
 void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
   if (reg < 0 || reg >= sig_count) {
-    cerr << "Setting Invalid Signal Address" << endl;
+    DMA_CERR << "Setting Invalid Signal Address" << endl;
     return;
   }
   // Print the register address in hex without stringstream
-  cout << "Setting reg[0x" << std::hex << (0x24 + reg * 8) << std::dec
+  DMA_COUT << "Setting reg[0x" << std::hex << (0x24 + reg * 8) << std::dec
        << "] = " << val << endl;
   write_reg(0x24 + reg * 8, val);
   msync(reg_base, PAGE_SIZE, MS_SYNC);
@@ -173,15 +173,15 @@ void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
 template <typename T>
 void acc_ctrl<T>::print_reg_map(bool clear_console) {
   // Clear the console (works on most UNIX terminals)
-  if (clear_console) std::cout << "\033[2J\033[1;1H";
-  cout << "================================================" << endl;
-  cout << "ACC Control Register Map" << endl;
+  if (clear_console) DMA_COUT << "\033[2J\033[1;1H";
+  DMA_COUT << "================================================" << endl;
+  DMA_COUT << "ACC Control Register Map" << endl;
   for (int i = 0; i < sig_count; i++) {
     unsigned int reg_addr = 0x24 + i * 8;
-    cout << "Reg[0x" << std::hex << reg_addr << std::dec << "]: " << get_reg(i)
+    DMA_COUT << "Reg[0x" << std::hex << reg_addr << std::dec << "]: " << get_reg(i)
          << endl;
   }
-  cout << "================================================" << endl;
+  DMA_COUT << "================================================" << endl;
 }
 
 // ================================================================================
@@ -211,7 +211,7 @@ void hwc_ctrl<T>::reset_hwc() {
 template <typename T>
 void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
   if (hwc < 0 || hwc >= hwc_count) {
-    cerr << "HWC index out of bounds: " << hwc << endl;
+    DMA_CERR << "HWC index out of bounds: " << hwc << endl;
     return;
   }
   write_reg(0x1C + (hwc * 0x18), target_state);
@@ -221,7 +221,7 @@ void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
 template <typename T>
 unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
   if (hwc < 0 || hwc >= hwc_count) {
-    cerr << "HWC index out of bounds: " << hwc << endl;
+    DMA_CERR << "HWC index out of bounds: " << hwc << endl;
     return -1;
   }
   return read_reg(0x2C + (hwc * 0x18));
@@ -230,7 +230,7 @@ unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
 template <typename T>
 unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
   if (hwc < 0 || hwc >= hwc_count) {
-    cerr << "HWC index out of bounds: " << hwc << endl;
+    DMA_CERR << "HWC index out of bounds: " << hwc << endl;
     return -1;
   }
   return read_reg(0x24 + (hwc * 0x18));
@@ -239,17 +239,17 @@ unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
 template <typename T>
 void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
   // Clear the console (works on most UNIX terminals)
-  if (clear_console) std::cout << "\033[2J\033[1;1H";
-  cout << "================================================" << endl;
-  cout << "HWC Control Register Map" << endl;
+  if (clear_console) DMA_COUT << "\033[2J\033[1;1H";
+  DMA_COUT << "================================================" << endl;
+  DMA_COUT << "HWC Control Register Map" << endl;
   for (int i = 0; i < hwc_count; i++) {
     int curr_target_state = read_reg(0x1C + (i * 0x18));
-    cout << "HWC[" << (0x1C + (i * 0x18))
+    DMA_COUT << "HWC[" << (0x1C + (i * 0x18))
          << "] | Current State: " << get_current_state(i)
          << " | Cycle Count: " << get_cycle_count(i)
          << " | Target State: " << curr_target_state << endl;
   }
-  cout << "================================================" << endl;
+  DMA_COUT << "================================================" << endl;
 }
 
 // ================================================================================
@@ -284,14 +284,14 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
   sg_mode = _sg_mode;
   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
   if (sg_mode) {
-    cerr << "SG MODE NOT IMPLEMENTED, FALLBACK TO NON-SG MODE" << endl;
+    DMA_CERR << "SG MODE NOT IMPLEMENTED, FALLBACK TO NON-SG MODE" << endl;
     exit(EXIT_FAILURE);
   } else {
 
 #ifdef KRIA
 
 #ifdef USE_UBUF
-    cerr << "UBUF ALLOC" << endl;
+    DMA_CERR << "UssasasBUF ALLOC" << endl;
     ubuf_id_in = ubuf_id++;
     ubuf_id_out = ubuf_id++;
     input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
@@ -301,7 +301,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
     input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
     output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
 #else
-    cerr << "RAW ALLOC" << endl;
+    DMA_CERR << "RAW ALLOC" << endl;
     input = mm_alloc_rw<int>(_input, _input_size);
     output = mm_alloc_r<int>(_output, _output_size);
     input_size = _input_size;
@@ -313,7 +313,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
 #else
 
 #ifdef USE_CMA
-    cerr << "CMA ALLOC" << endl;
+    DMA_CERR << "CMA ALLOC" << endl;
     input = cmap_alloc_rw<int>(_input_size);
     output = cmap_alloc_rw<int>(_output_size);
     int *input_buf = reinterpret_cast<int *>(input);
@@ -321,7 +321,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
     input_addr = cma_get_phy_addr(input_buf);
     output_addr = cma_get_phy_addr(output_buf);
 #else
-    cerr << "RAW ALLOC" << endl;
+    DMA_CERR << "RAW ALLOC" << endl;
     input = mm_alloc_rw<int>(_input, _input_size);
     output = mm_alloc_r<int>(_output, _output_size);
     input_size = _input_size;
@@ -332,7 +332,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
 
 #endif
     initDMA(input_addr, output_addr);
-    cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
+    DMA_CERR << "DMA " << id << " | input_addr: " << HEX(input_addr)
          << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
          << " size: " << _output_size << endl;
   }
@@ -401,7 +401,7 @@ void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {
 
 template <int B, int T>
 void stream_dma<B, T>::dma_free() {
-  cout << "DMA: " << id << " freed " << endl;
+  DMA_COUT << "DMA: " << id << " freed " << endl;
   print_times();
   cma_munmap(dma_addr, PAGE_SIZE);
 #ifdef KRIA
@@ -432,7 +432,7 @@ template <int B, int T>
 void stream_dma<B, T>::dma_start_send(int length) {
 #ifndef DISABLE_DMA
   prf_start_x(send_start);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered += length * (B / 8);
   data_send_count++;
 #endif
@@ -471,7 +471,7 @@ void stream_dma<B, T>::dma_wait_recv() {
   msync(output, output_size, MS_SYNC);
   // prf_end(0, recv_wait);
   prf_end_x(1, send_start, recv_wait);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered_recv += readMappedReg(S2MM_LENGTH);
   data_recv_count++;
 #endif
@@ -511,7 +511,7 @@ float stream_dma<B, T>::get_recv_bandwidth() {
 
 template <int B, int T>
 void stream_dma<B, T>::profile_reset() {
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered = 0;
   data_transfered_recv = 0;
   data_send_count = 0;
@@ -523,12 +523,12 @@ void stream_dma<B, T>::profile_reset() {
 
 template <int B, int T>
 void stream_dma<B, T>::print_times() {
-#ifdef ACC_PROFILE
-  cerr << "================================================" << endl;
-  cerr << "-----------"
+#ifdef DMA_PROFILE
+  DMA_PCERR << "================================================" << endl;
+  DMA_PCERR << "-----------"
        << "DMA: " << id << "-----------" << endl;
-  cerr << "Data Transfered: " << data_transfered << " bytes" << endl;
-  cerr << "Data Transfered Recv: " << data_transfered_recv << " bytes" << endl;
+  DMA_PCERR << "Data Transfered: " << data_transfered << " bytes" << endl;
+  DMA_PCERR << "Data Transfered Recv: " << data_transfered_recv << " bytes" << endl;
   prf_out(TSCALE, send_wait);
   prf_out(TSCALE, recv_wait);
   float sendtime = (float)prf_count(TSCALE, send_wait) / 1000000;
@@ -541,15 +541,15 @@ void stream_dma<B, T>::print_times() {
   if (data_send_count == 0) data_send_count = 1;
   if (data_recv_count == 0) data_recv_count = 1;
 
-  cerr << "Send speed: " << (data_transfered_MB / sendtime) << " MB/s" << endl;
-  cerr << "Recv speed: " << (data_recv_MB / recvtime) << " MB/s" << endl;
-  cerr << "Data Send Count: " << data_send_count << endl;
-  cerr << "Data Recv Count: " << data_recv_count << endl;
+  DMA_PCERR << "Send speed: " << (data_transfered_MB / sendtime) << " MB/s" << endl;
+  DMA_PCERR << "Recv speed: " << (data_recv_MB / recvtime) << " MB/s" << endl;
+  DMA_PCERR << "Data Send Count: " << data_send_count << endl;
+  DMA_PCERR << "Data Recv Count: " << data_recv_count << endl;
   int data_per_send = data_transfered / data_send_count;
   int data_per_recv = data_transfered_recv / data_recv_count;
-  cerr << "Data per Send: " << data_per_send << " bytes" << endl;
-  cerr << "Data per Recv: " << data_per_recv << " bytes" << endl;
-  cerr << "================================================" << endl;
+  DMA_PCERR << "Data per Send: " << data_per_send << " bytes" << endl;
+  DMA_PCERR << "Data per Recv: " << data_per_recv << " bytes" << endl;
+  DMA_PCERR << "================================================" << endl;
   std::ofstream file("dma" + std::to_string(id) + ".csv", std::ios::out);
   // csv file header
   file << "Data Transfered,Data Transfered Recv,Send Time,Recv Time,Send "

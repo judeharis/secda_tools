@@ -96,13 +96,13 @@ axi4lite_ctrl<T>::axi4lite_ctrl(int *base_addr) {}
 
 template <typename T>
 unsigned int axi4lite_ctrl<T>::read_reg(unsigned int offset) {
-  cout << "This call should not be used in simulation" << endl;
+  DMA_COUT << "This call should not be used in simulation" << endl;
   return 0;
 }
 
 template <typename T>
 void axi4lite_ctrl<T>::write_reg(unsigned int offset, unsigned int val) {
-  cout << "This call should not be used in simulation" << endl;
+  DMA_COUT << "This call should not be used in simulation" << endl;
 }
 
 // ===============================================================================
@@ -152,7 +152,7 @@ bool acc_ctrl<T>::check_done() {
 template <typename T>
 unsigned int acc_ctrl<T>::get_reg(int reg) {
   if (reg < 0 || reg >= sig_count) {
-    cerr << "Getting Invalid Signal Address" << endl;
+    DMA_CERR << "Getting Invalid Signal Address" << endl;
     return 1;
   }
   return reg_sigs[reg].sig.read();
@@ -161,7 +161,7 @@ unsigned int acc_ctrl<T>::get_reg(int reg) {
 template <typename T>
 void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
   if (reg < 0 || reg >= sig_count) {
-    cerr << "Setting Invalid Signal Address" << endl;
+    DMA_CERR << "Setting Invalid Signal Address" << endl;
     return;
   }
   reg_sigs[reg].sig.write(val);
@@ -170,13 +170,13 @@ void acc_ctrl<T>::set_reg(int reg, unsigned int val) {
 template <typename T>
 void acc_ctrl<T>::print_reg_map(bool clear_console) {
   // Clear the console (works on most UNIX terminals)
-  if (clear_console) std::cout << "\033[2J\033[1;1H";
-  cout << "================================================" << endl;
-  cout << "ACC Control Register Map" << endl;
+  if (clear_console) DMA_COUT << "\033[2J\033[1;1H";
+  DMA_COUT << "================================================" << endl;
+  DMA_COUT << "ACC Control Register Map" << endl;
   for (int i = 0; i < sig_count; i++) {
-    cout << "Reg[" << (0x24 + i * 8) << "]: " << get_reg(i) << endl;
+    DMA_COUT << "Reg[" << (0x24 + i * 8) << "]: " << get_reg(i) << endl;
   }
-  cout << "================================================" << endl;
+  DMA_COUT << "================================================" << endl;
 }
 
 // ================================================================================
@@ -211,7 +211,7 @@ void hwc_ctrl<T>::reset_hwc() {
 template <typename T>
 void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
   if (hwc < 0 || hwc >= hwc_count) {
-    cerr << "HWC index out of bounds: " << hwc << endl;
+    DMA_CERR << "HWC index out of bounds: " << hwc << endl;
   }
   ctrl[hwc].sts.write(target_state);
   hwc_current_target_states[hwc] = target_state;
@@ -220,7 +220,7 @@ void hwc_ctrl<T>::set_target_state(int hwc, int target_state) {
 template <typename T>
 unsigned int hwc_ctrl<T>::get_current_state(int hwc) {
   if (hwc < 0 || hwc >= hwc_count) {
-    cerr << "HWC index out of bounds: " << hwc << endl;
+    DMA_CERR << "HWC index out of bounds: " << hwc << endl;
     return 1;
   }
   return ctrl[hwc].so.read();
@@ -234,17 +234,17 @@ unsigned int hwc_ctrl<T>::get_cycle_count(int hwc) {
 template <typename T>
 void hwc_ctrl<T>::print_hwc_map(bool clear_console) {
   // Clear the console (works on most UNIX terminals)
-  if (clear_console) std::cout << "\033[2J\033[1;1H";
-  cout << "================================================" << endl;
-  cout << "HWC Control Register Map" << endl;
+  if (clear_console) DMA_COUT << "\033[2J\033[1;1H";
+  DMA_COUT << "================================================" << endl;
+  DMA_COUT << "HWC Control Register Map" << endl;
   for (int i = 0; i < hwc_count; i++) {
     int curr_target_state = ctrl[i].sts.read();
-    cout << "HWC[" << (0x1C + (i * 0x18))
+    DMA_COUT << "HWC[" << (0x1C + (i * 0x18))
          << "] | Current State: " << get_current_state(i)
          << " | Cycle Count: " << get_cycle_count(i)
          << " | Target State: " << curr_target_state << endl;
   }
-  cout << "================================================" << endl;
+  DMA_COUT << "================================================" << endl;
 }
 
 // ================================================================================
@@ -377,7 +377,7 @@ template <int B, int T>
 void stream_dma<B, T>::dma_start_send(int length) {
   dmad->input_len = length * (B / 32);
   dmad->send = true;
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered += length * (B / 8);
   data_send_count++;
 #endif
@@ -406,7 +406,7 @@ void stream_dma<B, T>::dma_wait_recv() {
   prf_start(0);
   if (dmad->recv) dma_s2mm_sync();
   prf_end(0, recv_wait);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered_recv += dmad->output_len * (B / 8);
   data_recv_count++;
 #endif
@@ -440,7 +440,7 @@ float stream_dma<B, T>::get_recv_bandwidth() {
 
 template <int B, int T>
 void stream_dma<B, T>::profile_reset() {
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered = 0;
   data_transfered_recv = 0;
   data_send_count = 0;
@@ -452,12 +452,12 @@ void stream_dma<B, T>::profile_reset() {
 
 template <int B, int T>
 void stream_dma<B, T>::print_times() {
-#ifdef ACC_PROFILE
-  cerr << "================================================" << endl;
-  cerr << "-----------"
+#ifdef DMA_PROFILE
+  DMA_PCERR << "================================================" << endl;
+  DMA_PCERR << "-----------"
        << "DMA: " << id << "-----------" << endl;
-  cerr << "Data Transfered: " << data_transfered << " bytes" << endl;
-  cerr << "Data Transfered Recv: " << data_transfered_recv << " bytes" << endl;
+  DMA_PCERR << "Data Transfered: " << data_transfered << " bytes" << endl;
+  DMA_PCERR << "Data Transfered Recv: " << data_transfered_recv << " bytes" << endl;
   prf_out(TSCALE, send_wait);
   prf_out(TSCALE, recv_wait);
   float sendtime = (float)prf_count(TSCALE, send_wait) / 1000000;
@@ -470,16 +470,16 @@ void stream_dma<B, T>::print_times() {
   if (data_send_count == 0) data_send_count = 1;
   if (data_recv_count == 0) data_recv_count = 1;
 
-  cerr << "Send speed: " << (data_transfered_MB / sendtime) << " MB/s" << endl;
-  cerr << "Recv speed: " << (data_recv_MB / recvtime) << " MB/s" << endl;
-  cerr << "Data Send Count: " << data_send_count << endl;
-  cerr << "Data Recv Count: " << data_recv_count << endl;
+  DMA_PCERR << "Send speed: " << (data_transfered_MB / sendtime) << " MB/s" << endl;
+  DMA_PCERR << "Recv speed: " << (data_recv_MB / recvtime) << " MB/s" << endl;
+  DMA_PCERR << "Data Send Count: " << data_send_count << endl;
+  DMA_PCERR << "Data Recv Count: " << data_recv_count << endl;
   int data_per_send = data_transfered / data_send_count;
   int data_per_recv = data_transfered_recv / data_recv_count;
-  cerr << "Data per Send: " << data_per_send << " bytes" << endl;
-  cerr << "Data per Recv: " << data_per_recv << " bytes" << endl;
+  DMA_PCERR << "Data per Send: " << data_per_send << " bytes" << endl;
+  DMA_PCERR << "Data per Recv: " << data_per_recv << " bytes" << endl;
   // dmad->pattern_csv();
-  cerr << "================================================" << endl;
+  DMA_PCERR << "================================================" << endl;
 #endif
 }
 
