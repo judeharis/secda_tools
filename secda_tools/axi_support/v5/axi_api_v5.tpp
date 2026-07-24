@@ -291,7 +291,7 @@ void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
 #ifdef KRIA
 
 #ifdef USE_UBUF
-    DMA_CERR << "UssasasBUF ALLOC" << endl;
+    DMA_CERR << "UBUF ALLOC" << endl;
     ubuf_id_in = ubuf_id++;
     ubuf_id_out = ubuf_id++;
     input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
