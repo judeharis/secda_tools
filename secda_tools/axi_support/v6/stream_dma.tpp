@@ -233,7 +233,7 @@ template <int B, int T>
 void stream_dma<B, T>::dma_start_send(int length) {
 #ifndef DISABLE_DMA
   prf_start_x(send_start);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered += length * (B / 8);
   data_send_count++;
 #endif
@@ -284,7 +284,7 @@ void stream_dma<B, T>::dma_wait_recv() {
   msync(output, output_size, MS_SYNC);
   // prf_end(0, recv_wait);
   prf_end_x(1, send_start, recv_wait);
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   data_transfered_recv += readMappedReg(S2MM_LENGTH);
   data_recv_count++;
 #endif
@@ -343,7 +343,7 @@ void stream_dma<B, T>::dma_sg_start_recv() {
 
 template <int B, int T>
 void stream_dma<B, T>::print_times() {
-#ifdef ACC_PROFILE
+#ifdef DMA_PROFILE
   cerr << "================================================" << endl;
   cerr << "-----------"
        << "DMA: " << id << "-----------" << endl;
