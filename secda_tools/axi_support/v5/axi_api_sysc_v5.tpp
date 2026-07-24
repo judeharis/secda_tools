@@ -287,10 +287,7 @@ stream_dma<B, T>::stream_dma() : id(s_id++) {
 
 template <int B, int T>
 stream_dma<B, T>::~stream_dma() {
-  DMA_COUT << "DMA: " << id << " freed " << endl;
-  print_times();
   dma_free();
-  delete dmad;
 }
 
 // TODO: Implement SG Mode
@@ -360,8 +357,11 @@ void stream_dma<B, T>::initDMA(unsigned int src, unsigned int dst) {}
 
 template <int B, int T>
 void stream_dma<B, T>::dma_free() {
+  DMA_COUT << "DMA: " << id << " freed " << endl;
+  print_times();
   free(input);
   free(output);
+  delete dmad;
 }
 
 template <int B, int T>
@@ -548,7 +548,7 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 template <int B, int T>
 multi_dma<B, T>::~multi_dma() {
   for (int i = 0; i < dma_count; i++) {
-    free(dmas[i]);
+    dmas[i].dma_free();
   }
   // print_times();
 }
