@@ -287,6 +287,7 @@ stream_dma<B, T>::stream_dma() : id(s_id++) {
 
 template <int B, int T>
 stream_dma<B, T>::~stream_dma() {
+  DMA_COUT << "DMA: " << id << " freed " << endl;
   print_times();
   dma_free();
   delete dmad;
@@ -546,7 +547,10 @@ multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
 
 template <int B, int T>
 multi_dma<B, T>::~multi_dma() {
-  print_times();
+  for (int i = 0; i < dma_count; i++) {
+    free(dmas[i]);
+  }
+  // print_times();
 }
 
 template <int B, int T>
