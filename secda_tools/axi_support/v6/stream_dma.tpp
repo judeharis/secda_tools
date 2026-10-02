@@ -7,14 +7,9 @@ template <int B, int T>
 int stream_dma<B, T>::s_id = 0;
 
 template <int B, int T>
-int stream_dma<B, T>::ubuf_id = 0;
-
-template <int B, int T>
-stream_dma<B, T>::stream_dma(unsigned int _dma_addr, unsigned int _input,
-                             unsigned int _input_size, unsigned int _output,
-                             unsigned int _output_size)
+stream_dma<B, T>::stream_dma(unsigned int _dma_addr, bool _sg_mode)
     : id(s_id++) {
-  dma_init(_dma_addr, _input, _input_size, _output, _output_size);
+  dma_init(_dma_addr, _sg_mode);
 }
 
 template <int B, int T>
@@ -26,103 +21,32 @@ stream_dma<B, T>::~stream_dma() {
 }
 
 template <int B, int T>
-void stream_dma<B, T>::dma_init(unsigned int _dma_addr, unsigned int _input,
-                                unsigned int _input_size, unsigned int _output,
-                                unsigned int _output_size, bool _sg_mode) {
+void stream_dma<B, T>::dma_init(unsigned int _dma_addr, bool _sg_mode) {
+  if (_sg_mode) {
+    cerr << "Error: SG mode is not supported with mm_buffer binding on hardware"
+         << endl;
+    exit(EXIT_FAILURE);
+  }
   sg_mode = _sg_mode;
   dma_addr = mm_alloc_rw<unsigned int>(_dma_addr, PAGE_SIZE);
-  if (sg_mode) {
-    if (_input_size < MAX_DESC * DESC_SIZE ||
-        _output_size < MAX_DESC * DESC_SIZE) {
-      cerr << "Error: not enough buffer size for SG mode. Minimum size: "
-           << MAX_DESC * DESC_SIZE << " bytes" << endl;
-      exit(EXIT_FAILURE);
-    }
-    mm2s_bd_phy_addr = _input;
-    s2mm_bd_phy_addr = _output;
-    input_addr = _input + (MAX_DESC * DESC_SIZE);
-    output_addr = _output + (MAX_DESC * DESC_SIZE);
-    input_size = _input_size - (MAX_DESC * DESC_SIZE);
-    output_size = _output_size - (MAX_DESC * DESC_SIZE);
-#ifdef KRIA
-    cerr << "KRIA ALLOC" << endl;
-    mm2s_bd_addr = mm_alloc_rw<int>(_input, MAX_DESC * DESC_SIZE);
-    s2mm_bd_addr = mm_alloc_rw<int>(_output, MAX_DESC * DESC_SIZE);
-    input = mm_alloc_rw<int>(input_addr, input_size);
-    output = mm_alloc_rw<int>(output_addr, output_size);
+  input_buffer = nullptr;
+  output_buffer = nullptr;
+}
 
-#else
-    cout << "CMA ALLOC" << endl;
-    mm2s_bd_addr = cmap_alloc_rw<int>(MAX_DESC * DESC_SIZE);
-    s2mm_bd_addr = cmap_alloc_rw<int>(MAX_DESC * DESC_SIZE);
-    input = cmap_alloc_rw<int>(input_size);
-    output = cmap_alloc_rw<int>(output_size);
-    int *mm2s_bd_buf = reinterpret_cast<int *>(mm2s_bd_addr);
-    int *s2mm_bd_buf = reinterpret_cast<int *>(s2mm_bd_addr);
-    int *input_buf = reinterpret_cast<int *>(input);
-    int *output_buf = reinterpret_cast<int *>(output);
+template <int B, int T>
+void stream_dma<B, T>::dma_bind_input_buffer(mm_buffer<int> *_input_buffer) {
+  input_buffer = _input_buffer;
+  input_addr = input_buffer->addr * 4; // mm_buffer stores word address
+  input_size = input_buffer->size * sizeof(int);
+  if (output_buffer) initDMA(input_addr, output_addr);
+}
 
-    mm2s_bd_phy_addr = cma_get_phy_addr(mm2s_bd_buf);
-    s2mm_bd_phy_addr = cma_get_phy_addr(s2mm_bd_buf);
-    input_addr = cma_get_phy_addr(input_buf);
-    output_addr = cma_get_phy_addr(output_buf);
-#endif
-
-    initDMA(mm2s_bd_phy_addr, s2mm_bd_phy_addr, true);
-    cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
-         << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
-         << " size: " << _output_size << endl;
-
-  } else {
-
-#ifdef KRIA
-
-#ifdef USE_UBUF
-    cerr << "UBUF ALLOC" << endl;
-    ubuf_id_in = ubuf_id++;
-    ubuf_id_out = ubuf_id++;
-    input = ubuf_mm_alloc_rw<int>(_input_size, ubuf_id_in);
-    output = ubuf_mm_alloc_rw<int>(_output_size, ubuf_id_out);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_in);
-    output_addr = ubuf_get_phy_addr<unsigned long>(ubuf_id_out);
-#else
-    cerr << "RAW ALLOC" << endl;
-    input = mm_alloc_rw<int>(_input, _input_size);
-    output = mm_alloc_r<int>(_output, _output_size);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = _input;
-    output_addr = _output;
-#endif
-
-#else
-
-#ifdef USE_CMA
-    cerr << "CMA ALLOC" << endl;
-    input = cmap_alloc_rw<int>(_input_size);
-    output = cmap_alloc_rw<int>(_output_size);
-    int *input_buf = reinterpret_cast<int *>(input);
-    int *output_buf = reinterpret_cast<int *>(output);
-    input_addr = cma_get_phy_addr(input_buf);
-    output_addr = cma_get_phy_addr(output_buf);
-#else
-    cerr << "RAW ALLOC" << endl;
-    input = mm_alloc_rw<int>(_input, _input_size);
-    output = mm_alloc_r<int>(_output, _output_size);
-    input_size = _input_size;
-    output_size = _output_size;
-    input_addr = _input;
-    output_addr = _output;
-#endif
-
-#endif
-    initDMA(input_addr, output_addr);
-    cerr << "DMA " << id << " | input_addr: " << HEX(input_addr)
-         << " size: " << _input_size << " | output_addr: " << HEX(output_addr)
-         << " size: " << _output_size << endl;
-  }
+template <int B, int T>
+void stream_dma<B, T>::dma_bind_output_buffer(mm_buffer<int> *_output_buffer) {
+  output_buffer = _output_buffer;
+  output_addr = output_buffer->addr * 4; // mm_buffer stores word address
+  output_size = output_buffer->size * sizeof(int);
+  if (input_buffer) initDMA(input_addr, output_addr);
 }
 
 template <int B, int T>
@@ -207,26 +131,17 @@ void stream_dma<B, T>::dma_free() {
   cout << "DMA: " << id << " freed " << endl;
   print_times();
   cma_munmap(dma_addr, PAGE_SIZE);
-#ifdef KRIA
-  munmap(input, input_size);
-  munmap(output, output_size);
-  if (ubuf_id_in >= 0) ubuf_free(ubuf_id_in);
-  if (ubuf_id_out >= 0) ubuf_free(ubuf_id_out);
-#else
-  cma_free(input);
-  cma_free(output);
-#endif
   // munlockall();
 }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_inbuffer() {
-  return input;
+  return input_buffer->buffer;
 }
 
 template <int B, int T>
 int *stream_dma<B, T>::dma_get_outbuffer() {
-  return output;
+  return output_buffer->buffer;
 }
 
 template <int B, int T>
@@ -237,7 +152,7 @@ void stream_dma<B, T>::dma_start_send(int length) {
   data_transfered += length * (B / 8);
   data_send_count++;
 #endif
-  msync(input, input_size, MS_SYNC | MS_INVALIDATE);
+  msync(input_buffer->buffer, input_size, MS_SYNC | MS_INVALIDATE);
   writeMappedReg(MM2S_LENGTH, length * (B / 8));
 #endif
 }
@@ -281,7 +196,7 @@ void stream_dma<B, T>::dma_wait_recv() {
     s2mm_curdesc_offset = 0;
     s2mm_curdesc_phy_addr = s2mm_bd_phy_addr;
   }
-  msync(output, output_size, MS_SYNC);
+  msync(output_buffer->buffer, output_size, MS_SYNC);
   // prf_end(0, recv_wait);
   prf_end_x(1, send_start, recv_wait);
 #ifdef DMA_PROFILE
@@ -391,21 +306,12 @@ void stream_dma<B, T>::print_times() {
 
 template <int B, int T>
 multi_dma<B, T>::multi_dma(int _dma_count, unsigned int *_dma_addrs,
-                           unsigned int *_dma_addrs_in,
-                           unsigned int *_dma_addrs_out,
-                           unsigned int _in_buffer_size,
-                           unsigned int _out_buffer_size, bool _sg_mode) {
+                           bool _sg_mode) {
   dma_count = _dma_count;
   dmas = new stream_dma<B, T>[dma_count];
   dma_addrs = _dma_addrs;
-  dma_addrs_in = _dma_addrs_in;
-  dma_addrs_out = _dma_addrs_out;
-  in_buffer_size = _in_buffer_size;
-  out_buffer_size = _out_buffer_size;
 
-  for (int i = 0; i < dma_count; i++)
-    dmas[i].dma_init(dma_addrs[i], dma_addrs_in[i], in_buffer_size * 1,
-                     dma_addrs_out[i], out_buffer_size * 1, _sg_mode);
+  for (int i = 0; i < dma_count; i++) dmas[i].dma_init(dma_addrs[i], _sg_mode);
 }
 
 template <int B, int T>

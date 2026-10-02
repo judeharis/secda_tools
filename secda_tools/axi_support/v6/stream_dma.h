@@ -115,11 +115,6 @@ struct stream_dma {
 
   static int s_id;
   const int id;
-  int cma_id = 0;
-
-  int ubuf_id_in = -1;
-  int ubuf_id_out = -1;
-  static int ubuf_id;
 
   // Profiling variables
   unsigned int data_transfered = 0;
